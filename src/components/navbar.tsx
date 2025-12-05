@@ -9,7 +9,6 @@ export default function Navbar() {
 				<ul className={styles.links}>
 					<li><Link to="/">Home</Link></li>
 					<li><Link to="/runner">Runner</Link></li>
-					<li><Link to="/lobby">Lobby</Link></li>
 				</ul>
 			</nav>
 		</header>

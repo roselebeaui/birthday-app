@@ -1,23 +1,15 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import BlockRunner from './pages/block_runner/BlockRunner'
 import Lobby from './pages/multiplayer/Lobby'
 import Navbar from './components/navbar'
-
-function Home() {
-  return (
-    <main style={{ padding: 24 }}>
-      <h1>Home</h1>
-      <p>Welcome! Choose a mode from the navbar.</p>
-    </main>
-  )
-}
 
 export default function App() {
   return (
     <BrowserRouter>
       <Navbar />
       <Routes>
-        <Route path="/" element={<Home />} />
+        {/* Default route goes to Block Runner */}
+        <Route path="/" element={<Navigate to="/runner" replace />} />
         <Route path="/runner" element={<BlockRunner />} />
         <Route path="/lobby" element={<Lobby />} />
         {/* Aliases for legacy paths */}
