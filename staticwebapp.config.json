@@ -1,0 +1,24 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/assets/*",
+      "/*.css",
+      "/*.js",
+      "/*.png",
+      "/*.jpg",
+      "/*.jpeg",
+      "/*.gif",
+      "/*.svg",
+      "/*.ico",
+      "/*.webp",
+      "/*.json",
+      "/*.txt",
+      "/favicon.*"
+    ]
+  },
+  "routes": [
+    { "route": "/games/block-runner", "rewrite": "/runner" },
+    { "route": "/games/lobby", "rewrite": "/lobby" }
+  ]
+}

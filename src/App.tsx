@@ -20,6 +20,9 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/runner" element={<BlockRunner />} />
         <Route path="/lobby" element={<Lobby />} />
+        {/* Aliases for legacy paths */}
+        <Route path="/games/block-runner" element={<BlockRunner />} />
+        <Route path="/games/lobby" element={<Lobby />} />
       </Routes>
     </BrowserRouter>
   )
