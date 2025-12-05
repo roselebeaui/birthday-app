@@ -1,24 +1,6 @@
 import { useState } from 'react'
+import { useLobby } from './useLobby'
 type Player = { id: string; name: string; color: string; ready: boolean; isLeader: boolean }
-type LobbyState = { lobbyCode?: string; players: Player[]; started: boolean; self?: Player }
-function useLobby() {
-  const [state, setState] = useState<LobbyState>({ players: [], started: false })
-  const joinLobby = ({ lobbyCode, name, color }: { lobbyCode: string; name: string; color: string }) => {
-    const id = crypto.randomUUID()
-    const self: Player = { id, name, color, ready: false, isLeader: state.players.length === 0 }
-    setState(s => ({ ...s, lobbyCode, self, players: [...s.players, self] }))
-  }
-  const setReady = (ready: boolean) => {
-    setState(s => {
-      const players = s.players.map(p => p.id === s.self?.id ? { ...p, ready } : p)
-      const self = s.self ? { ...s.self, ready } : undefined
-      return { ...s, players, self }
-    })
-  }
-  const startGame = () => setState(s => ({ ...s, started: true }))
-  const createLobbyCode = () => Math.random().toString(36).substring(2, 7).toUpperCase()
-  return { state, joinLobby, setReady, startGame, createLobbyCode }
-}
 import styles from './Lobby.module.css'
 
 export default function Lobby() {
@@ -26,7 +8,7 @@ export default function Lobby() {
   const [color, setColor] = useState('#4f46e5')
   const [lobbyCode, setLobbyCode] = useState('')
   const [joined, setJoined] = useState(false)
-  const { state, joinLobby, setReady, startGame, createLobbyCode } = useLobby()
+  const { state, joinLobby, setReady, startGame, createLobbyCode, connection } = useLobby()
 
   const colors = ['#ef4444','#22c55e','#3b82f6','#a855f7','#f59e0b','#ec4899']
 
@@ -73,6 +55,9 @@ export default function Lobby() {
           <div className={styles.header}>
             <span>Lobby: {lobbyCode}</span>
             <button className={styles.button} onClick={() => navigator.clipboard.writeText(lobbyCode)}>Copy Code</button>
+            <span style={{ marginLeft: 'auto', fontSize: 12, opacity: 0.8 }}>
+              Connection: {connection === 'idle' ? 'Idle' : connection === 'connecting' ? 'Connecting…' : connection === 'connected' ? 'Connected' : 'Error'}
+            </span>
           </div>
           <div className={styles.party}>
             {(state.players ?? []).map((p: Player) => (
