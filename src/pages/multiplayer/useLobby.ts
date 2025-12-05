@@ -11,12 +11,12 @@ export function useLobby() {
   const hub = (import.meta as any).env?.VITE_PUBSUB_HUB as string | undefined
 
   // Placeholder client-side room until backend is wired
-  const joinLobby = ({ lobbyCode, name, color }: { lobbyCode: string; name: string; color: string }) => {
+    const joinLobby = ({ lobbyCode, name, color }: { lobbyCode: string; name: string; color: string }) => {
     const id = crypto.randomUUID()
     const self: Player = { id, name, color, ready: false, isLeader: state.players.length === 0 }
     setState(s => ({ ...s, lobbyCode, self, players: [...s.players, self] }))
     // Advertise lobby as open for discovery
-    advertiseLobby({ lobbyCode, leaderId: id, leaderName: name, color, status: 'open', playersCount: 1 }).catch(() => {})
+      advertiseLobby({ lobbyCode, leaderId: id, leaderName: name, color, status: 'open', playersCount: 1 }).catch(() => {})
     // Connect and announce join if negotiate endpoint is configured
     const connect = async () => {
       if (!negotiateUrl) return
@@ -100,7 +100,7 @@ export function useLobby() {
     }
     // Mark lobby started so it no longer appears in discovery
     if (state.lobbyCode && state.self?.isLeader) {
-      advertiseLobby({ lobbyCode: state.lobbyCode, leaderId: state.self.id, leaderName: state.self.name, color: state.self.color, status: 'started', playersCount: state.players.length }).catch(() => {})
+        advertiseLobby({ lobbyCode: state.lobbyCode, leaderId: state.self.id, leaderName: state.self.name, color: state.self.color, status: 'started', playersCount: state.players.length }).catch(() => {})
     }
   }
 
@@ -108,7 +108,7 @@ export function useLobby() {
     if (state.lobbyCode && state.self) {
       // Mark lobby closed if leader leaves; otherwise just update player count on backend
       const status: 'closed' | 'open' = state.self.isLeader ? 'closed' : 'open'
-      advertiseLobby({ lobbyCode: state.lobbyCode, leaderId: state.self.id, leaderName: state.self.name, color: state.self.color, status, playersCount: Math.max(0, state.players.length - 1) }).catch(() => {})
+        advertiseLobby({ lobbyCode: state.lobbyCode, leaderId: state.self.id, leaderName: state.self.name, color: state.self.color, status, playersCount: Math.max(0, state.players.length - 1) }).catch(() => {})
     }
     try { wsRef.current?.close() } catch {}
     setConnection('idle')
@@ -125,7 +125,7 @@ export function useLobby() {
 
   return { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby }
 
-  async function advertiseLobby(input: { lobbyCode: string; leaderId: string; leaderName: string; color: string; status: 'open'|'started'|'closed'; playersCount: number }) {
+    async function advertiseLobby(input: { lobbyCode: string; leaderId: string; leaderName: string; color: string; status: 'open'|'started'|'closed'; playersCount: number }) {
     const base = (import.meta as any).env?.VITE_FUNC_BASE as string | undefined
     if (!base) return
     await fetch(`${base}/api/lobby`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
