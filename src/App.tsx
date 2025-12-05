@@ -15,6 +15,8 @@ export default function App() {
         {/* Aliases for legacy paths */}
         <Route path="/games/block-runner" element={<BlockRunner />} />
         <Route path="/games/lobby" element={<Lobby />} />
+        {/* Catch-all: route any unknown path to Block Runner */}
+        <Route path="*" element={<Navigate to="/runner" replace />} />
       </Routes>
     </BrowserRouter>
   )
