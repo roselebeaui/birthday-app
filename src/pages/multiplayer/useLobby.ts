@@ -104,6 +104,17 @@ export function useLobby() {
     }
   }
 
+  const leaveLobby = () => {
+    if (state.lobbyCode && state.self) {
+      // Mark lobby closed if leader leaves; otherwise just update player count on backend
+      const status: 'closed' | 'open' = state.self.isLeader ? 'closed' : 'open'
+      advertiseLobby({ lobbyCode: state.lobbyCode, leaderId: state.self.id, leaderName: state.self.name, color: state.self.color, status, playersCount: Math.max(0, state.players.length - 1) }).catch(() => {})
+    }
+    try { wsRef.current?.close() } catch {}
+    setConnection('idle')
+    setState({ players: [], started: false })
+  }
+
   const createLobbyCode = () => Math.random().toString(36).substring(2, 7).toUpperCase()
 
   useEffect(() => {
@@ -112,7 +123,7 @@ export function useLobby() {
     }
   }, [])
 
-  return { state, joinLobby, setReady, startGame, createLobbyCode, connection }
+  return { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby }
 
   async function advertiseLobby(input: { lobbyCode: string; leaderId: string; leaderName: string; color: string; status: 'open'|'started'|'closed'; playersCount: number }) {
     const base = (import.meta as any).env?.VITE_FUNC_BASE as string | undefined

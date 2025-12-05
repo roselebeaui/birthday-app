@@ -851,30 +851,43 @@ export default function BlockRunner() {
 }
 
 function LobbySidebar() {
-  const { state, joinLobby, setReady, startGame, createLobbyCode, connection } = useLobby()
+  const { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby } = useLobby()
   const [name, setName] = useState('')
   const [color, setColor] = useState('#4f46e5')
   const [lobbyCode, setLobbyCode] = useState('')
   const [joined, setJoined] = useState(false)
   const [lobbies, setLobbies] = useState<Array<{ lobbyCode: string; leaderName: string; playersCount: number }>>([])
+  const [lobbiesStatus, setLobbiesStatus] = useState<'idle'|'loading'|'ok'|'error'>('idle')
+  const [lobbiesUpdatedAt, setLobbiesUpdatedAt] = useState<string>('')
+  // removed unused raw toggle for diagnostics
 
   useEffect(() => {
     const base = (import.meta as any).env?.VITE_FUNC_BASE as string | undefined
     let timer: any
     async function load() {
-      if (!base || joined) return
+      if (!base) return
       try {
+        setLobbiesStatus('loading')
         const res = await fetch(`${base}/api/lobbies`)
         if (res.ok) {
           const data = await res.json()
           setLobbies((data?.lobbies || []).slice(0, 25))
+          setLobbiesStatus('ok')
+          setLobbiesUpdatedAt(new Date().toLocaleTimeString())
+          console.log('Lobbies fetched OK', data)
+        } else {
+          setLobbiesStatus('error')
+          console.warn('Lobbies fetch failed', res.status, await res.text())
         }
-      } catch {}
+      } catch (e) {
+        setLobbiesStatus('error')
+        console.error('Lobbies fetch error', e)
+      }
     }
     load()
     timer = setInterval(load, 10000)
     return () => clearInterval(timer)
-  }, [joined])
+  }, [])
 
   const colors = ['#ef4444','#22c55e','#3b82f6','#a855f7','#f59e0b','#ec4899']
 
@@ -920,27 +933,15 @@ function LobbySidebar() {
             <button className={styles.button} onClick={create}>Create</button>
             <button className={styles.button} onClick={join}>Join</button>
           </div>
-          {lobbies.length > 0 && (
-            <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>Active Lobbies</div>
-              <div className={styles.party}>
-                {lobbies.map(l => (
-                  <div key={l.lobbyCode} className={styles.member}>
-                    <span>{l.lobbyCode}</span>
-                    <span style={{ opacity: 0.8 }}>by {l.leaderName}</span>
-                    <span className={styles.ready}>{l.playersCount} player(s)</span>
-                    <button className={styles.button} style={{ marginLeft: 8 }} onClick={() => { setLobbyCode(l.lobbyCode); }}>Join</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <AvailableLobbies lobbies={lobbies} onSelect={code => setLobbyCode(code)} />
+          <Diagnostics statusLabel={lobbiesStatus} updatedAt={lobbiesUpdatedAt} />
         </div>
       ) : (
         <div>
           <div className={styles.row}>
             <span>Lobby: {lobbyCode}</span>
             <button className={styles.button} onClick={() => navigator.clipboard.writeText(lobbyCode)}>Copy</button>
+            <button className={styles.button} onClick={() => { leaveLobby(); setJoined(false); setLobbyCode(''); }}>Leave Lobby</button>
           </div>
           <div className={styles.party}>
             {(state.players ?? []).map((p: Player) => (
@@ -955,8 +956,45 @@ function LobbySidebar() {
             <button className={styles.button} onClick={() => setReady(!state.self?.ready)}>Ready</button>
             <button className={styles.button} onClick={() => startGame()} disabled={!state.self?.isLeader}>Start</button>
           </div>
+          <AvailableLobbies lobbies={lobbies} onSelect={code => setLobbyCode(code)} />
+          <Diagnostics statusLabel={lobbiesStatus} updatedAt={lobbiesUpdatedAt} />
         </div>
       )}
     </aside>
+  )
+}
+
+function AvailableLobbies({ lobbies, onSelect }: { lobbies: Array<{ lobbyCode: string; leaderName: string; playersCount: number }>; onSelect: (code: string) => void }) {
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <div style={{ fontSize: 12, opacity: 0.85 }}>Available Lobbies</div>
+        <button className={styles.button} style={{ padding:'2px 6px', fontSize:12 }} onClick={() => location.reload()}>Refresh</button>
+      </div>
+      {lobbies.length === 0 ? (
+        <div style={{ opacity: 0.7, fontSize: 12 }}>No active lobbies yet</div>
+      ) : (
+        <div className={styles.party}>
+          {lobbies.map(l => (
+            <div key={l.lobbyCode} className={styles.member}>
+              <span>{l.lobbyCode}</span>
+              <span style={{ opacity: 0.8 }}>by {l.leaderName}</span>
+              <span className={styles.ready}>{l.playersCount} player(s)</span>
+              <button className={styles.button} style={{ marginLeft: 8 }} onClick={() => onSelect(l.lobbyCode)}>Join</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Diagnostics({ statusLabel, updatedAt }: { statusLabel: 'idle'|'loading'|'ok'|'error'; updatedAt: string }) {
+  const color = statusLabel === 'ok' ? '#22c55e' : statusLabel === 'loading' ? '#f59e0b' : statusLabel === 'error' ? '#ef4444' : '#9ca3af'
+  return (
+    <div style={{ marginTop: 6, fontSize: 12, display:'flex', alignItems:'center', gap:8 }}>
+      <span style={{ color }}>Status: {statusLabel}</span>
+      {updatedAt && <span style={{ opacity:0.7 }}>Updated: {updatedAt}</span>}
+    </div>
   )
 }
