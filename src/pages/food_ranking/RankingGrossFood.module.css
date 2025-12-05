@@ -1,0 +1,174 @@
+/* Scope variables to this page wrapper to avoid leaking into Navbar */
+.wrapper {
+  --fr-bg: #eaeaeb; 
+  --fr-panel: rgba(255,255,255,0.08);
+  --fr-panel-border: rgba(255,255,255,0.22);
+  --fr-text: #070707; /* brighter text */
+  --fr-muted: #c7c7c7;
+  --fr-accent: #8b5cf6;
+  --title-height: 48px; /* used to keep center unaffected by title */
+  --fr-slot-bg: #f3f3f4; /* lighter slot background */
+  --fr-slot-border: #bdbdbf; /* lighter border to match bg */
+}
+
+.wrapper {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 0;
+  color: var(--fr-text);
+  background: var(--fr-bg);
+  height: calc(100vh - var(--header-height, 64px));
+  overflow: hidden; /* prevent vertical overflow */
+}
+
+/* Overlay sidebar for ranking containers; isolated from page flow */
+.overlaySlots {
+  position: fixed;
+  top: var(--header-height, 64px);
+  left: 0;
+  width: 220px;
+  height: calc(100vh - var(--header-height, 72px)); /* below navbar to bottom of screen */
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 10; /* above page content but below navbar if needed */
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title { font-weight: 600; color: var(--fr-text); }
+
+.controls { display: flex; gap: 0.5rem; }
+
+.button {
+  background: var(--fr-accent);
+  border: none;
+  font-size: large;
+  color: #fff;
+  padding: 1rem 3rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+
+.stage {
+  display: grid;
+  grid-template-columns: 1fr; /* overlay handles the left column */
+  grid-template-rows: auto;
+  gap: 0;
+  align-items: center;
+  height: calc(100% - var(--title-height));
+}
+
+/* leftColumn removed: overlay replaces it */
+
+.photoGroup {
+  display: inline-grid;
+  grid-template-rows: auto auto;
+  justify-items: center;
+  align-items: center; /* center photo and button horizontally */
+}
+
+.title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--fr-text);
+  text-align: center;
+  height: var(--title-height);
+  line-height: var(--title-height);
+}
+
+.photoBox {
+  margin-top: 0.75rem; /* add space above the photo box */
+  margin-bottom: 1.5rem; /* widen gap before the start button */
+}
+
+.spinRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 0; /* sit flush under the photo box */
+}
+
+/* slots rendered inside overlaySlots */
+
+.overlaySlots > .slots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
+}
+
+.slot {
+  position: relative;
+  width: 100%;
+  height: 80px; /* slightly taller fixed height */
+  border: 2px solid var(--fr-slot-border, #444);
+  background: var(--fr-slot-bg, #1b1b1b);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.slot.selectable {
+  border-color: purple;
+  cursor: pointer;
+}
+
+.slotLabel {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fr-text, #eee);
+  z-index: 2;
+}
+
+.slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.photoBox {
+  place-self: center;
+  width: min(70vmin, 520px);
+  height: min(60vmin, 420px);
+  background: var(--fr-panel);
+  border: 2px solid var(--fr-panel-border);
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+/* Destination for shared element transition from the home card */
+[data-vtn="food-ranking"] { view-transition-name: food-ranking; }
+
+.photoBox img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* fill container while preserving aspect ratio */
+}
+
+.placeholder {
+  color: var(--fr-text);
+  opacity: 0.8;
+  font-size: 1rem;
+  text-align: center;
+  padding: 0 1rem;
+}
+
+/* Removed old grid-based slots and rank picker styles to ensure single column slots */

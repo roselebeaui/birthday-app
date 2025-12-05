@@ -1,0 +1,45 @@
+:root {
+	--bg: #0f061d;
+	--text: #ffffff;
+	--muted: #666666;
+	--border: #0f061d;
+	--header-height: 56px;
+}
+
+.header {
+	border-bottom: 1px solid var(--border);
+	background: var(--bg);
+	height: var(--header-height);
+}
+
+.nav {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: flex-start; /* keep content to the left, not edge-to-edge */
+	gap: 1rem;
+	padding: 0.75rem 1rem;
+}
+
+.brand {
+	font-weight: 600;
+	color: var(--text);
+}
+
+.links {
+	display: flex;
+	list-style: none;
+	gap: 1rem;
+	margin: 0;
+	padding: 0;
+	margin-left: 2rem; /* place links to the right of brand, not flush right */
+}
+
+.links a {
+	color: var(--muted);
+	text-decoration: none;
+}
+
+.links a:hover {
+	color: var(--text);
+}

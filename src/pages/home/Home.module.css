@@ -1,0 +1,178 @@
+:root {
+  --home-bg: #221238;
+  --home-text: #222222;
+}
+
+.section {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: var(--home-bg);
+  color: var(--home-text);
+}
+
+.logo {
+  width: 60%;
+  max-width: 300px;
+  height: auto;
+}
+
+.content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+/* Background flyer: moves around the screen behind all content */
+.flyer {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto; /* allow child to be clickable */
+  z-index: 0; /* behind cards/logo which are positioned above */
+}
+
+.flyItem {
+  position: absolute;
+   width: 72px; /* smaller */
+   height: 72px; /* smaller */
+  border-radius: 16px;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.35), rgba(255,255,255,0.1));
+  box-shadow: 0 12px 28px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12);
+  filter: blur(0.2px);
+  display: grid;
+  place-items: center;
+  color: #1a1a1a;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  pointer-events: auto;
+  will-change: transform, opacity;
+  animation: flyCurvy 12s cubic-bezier(0.42, 0, 0.58, 1) infinite, flyBlink 6s linear infinite; /* curvier path + random-ish blinking */
+}
+
+/* Ensure other components sit above flyer */
+.cards { z-index: 1; }
+.logo { z-index: 2; position: relative; }
+
+/* Curvier, less predictable path using many control points */
+@keyframes flyCurvy {
+  0%   { transform: translate(8vw, 18vh) rotate(0deg)   scale(1.0); }
+  10%  { transform: translate(28vw, 8vh)  rotate(8deg)  scale(0.98); }
+  20%  { transform: translate(58vw, 16vh) rotate(-6deg) scale(1.02); }
+  30%  { transform: translate(78vw, 36vh) rotate(12deg) scale(1.0); }
+  40%  { transform: translate(66vw, 58vh) rotate(-10deg) scale(1.04); }
+  50%  { transform: translate(44vw, 72vh) rotate(6deg)  scale(0.97); }
+  60%  { transform: translate(22vw, 62vh) rotate(-4deg) scale(1.03); }
+  70%  { transform: translate(14vw, 42vh) rotate(10deg) scale(0.99); }
+  80%  { transform: translate(26vw, 24vh) rotate(-8deg) scale(1.02); }
+  90%  { transform: translate(46vw, 12vh) rotate(6deg)  scale(0.98); }
+  100% { transform: translate(8vw, 18vh)  rotate(0deg)  scale(1.0); }
+}
+
+/* Irregular opacity changes to simulate random disappear/appear */
+@keyframes flyBlink {
+  0%   { opacity: 1; }
+  18%  { opacity: 1; }
+  24%  { opacity: 0; }
+  34%  { opacity: 0; } /* stays gone a bit longer */
+  38%  { opacity: 1; }
+  50%  { opacity: 1; }
+  56%  { opacity: 0; }
+  66%  { opacity: 0; } /* longer disappear */
+  70%  { opacity: 1; }
+  78%  { opacity: 0; }
+  90%  { opacity: 0; } /* longest vanish near end */
+  100% { opacity: 1; }
+}
+
+/* Fullscreen scare overlay */
+.scareOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000;
+  display: grid;
+  place-items: center;
+}
+
+.scareImage {
+  max-width: 100vw;
+  max-height: 100vh;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cards {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none; /* allow logo interactions later */
+}
+
+.ring {
+  position: relative;
+  width: min(70vmin, 560px);
+  height: min(70vmin, 560px);
+  z-index: 1;
+}
+
+.card {
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  width: 180px;
+  min-height: 110px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* inner content follows container; no separate animation to keep motion in sync */
+.cardInner { will-change: transform; }
+
+/* Shared element transition hook for opening a game */
+[data-vtn="food-ranking"] { view-transition-name: food-ranking; }
+
+/* radial positioning around center using CSS custom angles */
+.card { --radius: 300px; }
+.card:nth-child(1) { --angle: 0deg; }
+.card:nth-child(2) { --angle: 60deg; }
+.card:nth-child(3) { --angle: 120deg; }
+.card:nth-child(4) { --angle: 180deg; }
+.card:nth-child(5) { --angle: 240deg; }
+.card:nth-child(6) { --angle: 300deg; }
+
+@property --float-tx { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --float-ty { syntax: '<length>'; inherits: false; initial-value: 0px; }
+
+.card {
+  transform: translate(-50%, -50%) rotate(var(--angle)) translate(var(--radius)) rotate(calc(-1 * var(--angle))) translate(var(--float-tx), var(--float-ty));
+  --float-tx: 0px;
+  --float-ty: 0px;
+  animation: floatCard 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%   { transform: translateY(0px) translateX(0px); }
+  50%  { transform: translateY(-8px) translateX(4px); }
+  100% { transform: translateY(0px) translateX(0px); }
+}
+
+@keyframes floatCard {
+  0%   { --float-tx: 0px;   --float-ty: 0px; }
+  50%  { --float-tx: 4px;   --float-ty: -6px; }
+  100% { --float-tx: 0px;   --float-ty: 0px; }
+}

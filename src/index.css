@@ -1,0 +1,36 @@
+:root { font-family: system-ui, sans-serif; color-scheme: light; --header-height: 56px; }
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+html, body { margin: 0; overflow-x: hidden; }
+body { color: #222; background: #fff; }
+a { color: inherit; }
+img { max-width: 100%; height: auto; }
+main { width: 100%; min-height: calc(100vh - var(--header-height)); height: calc(100vh - var(--header-height)); margin: 0; padding: 0; display: block; }
+
+/* View Transitions: slower, more pronounced expand effect */
+::view-transition-group(food-ranking) {
+	animation-duration: 800ms;
+	animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+::view-transition-image-pair(food-ranking) {
+	animation-duration: 800ms;
+	animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Subtle scale/opacity to accentuate the expansion */
+::view-transition-old(food-ranking) {
+	animation: vtFadeOut 800ms ease-in forwards;
+}
+::view-transition-new(food-ranking) {
+	animation: vtScaleIn 800ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes vtFadeOut {
+	0%   { opacity: 1; }
+	100% { opacity: 0; }
+}
+@keyframes vtScaleIn {
+	0%   { transform: scale(0.92); opacity: 0.0; }
+	50%  { transform: scale(1.02); opacity: 0.6; }
+	100% { transform: scale(1.0);  opacity: 1; }
+}
+
