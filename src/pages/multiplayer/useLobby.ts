@@ -1,11 +1,10 @@
-import { useMemo, useRef, useState } from 'react'
+import { useState } from 'react'
 
 export type Player = { id: string; name: string; color: string; ready: boolean; isLeader: boolean }
 export type LobbyState = { lobbyCode?: string; players: Player[]; started: boolean; self?: Player }
 
 export function useLobby() {
   const [state, setState] = useState<LobbyState>({ players: [], started: false })
-  const wsRef = useRef<WebSocket | null>(null)
 
   // Placeholder client-side room until backend is wired
   const joinLobby = ({ lobbyCode, name, color }: { lobbyCode: string; name: string; color: string }) => {
