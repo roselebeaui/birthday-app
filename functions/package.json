@@ -6,6 +6,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@azure/web-pubsub": "latest"
+    "@azure/web-pubsub": "latest",
+    "@azure/data-tables": "latest"
   }
 }

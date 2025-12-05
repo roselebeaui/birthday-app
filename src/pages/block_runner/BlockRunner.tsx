@@ -856,6 +856,25 @@ function LobbySidebar() {
   const [color, setColor] = useState('#4f46e5')
   const [lobbyCode, setLobbyCode] = useState('')
   const [joined, setJoined] = useState(false)
+  const [lobbies, setLobbies] = useState<Array<{ lobbyCode: string; leaderName: string; playersCount: number }>>([])
+
+  useEffect(() => {
+    const base = (import.meta as any).env?.VITE_FUNC_BASE as string | undefined
+    let timer: any
+    async function load() {
+      if (!base || joined) return
+      try {
+        const res = await fetch(`${base}/api/lobbies`)
+        if (res.ok) {
+          const data = await res.json()
+          setLobbies((data?.lobbies || []).slice(0, 25))
+        }
+      } catch {}
+    }
+    load()
+    timer = setInterval(load, 10000)
+    return () => clearInterval(timer)
+  }, [joined])
 
   const colors = ['#ef4444','#22c55e','#3b82f6','#a855f7','#f59e0b','#ec4899']
 
@@ -901,6 +920,21 @@ function LobbySidebar() {
             <button className={styles.button} onClick={create}>Create</button>
             <button className={styles.button} onClick={join}>Join</button>
           </div>
+          {lobbies.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>Active Lobbies</div>
+              <div className={styles.party}>
+                {lobbies.map(l => (
+                  <div key={l.lobbyCode} className={styles.member}>
+                    <span>{l.lobbyCode}</span>
+                    <span style={{ opacity: 0.8 }}>by {l.leaderName}</span>
+                    <span className={styles.ready}>{l.playersCount} player(s)</span>
+                    <button className={styles.button} style={{ marginLeft: 8 }} onClick={() => { setLobbyCode(l.lobbyCode); }}>Join</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div>

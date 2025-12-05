@@ -42,3 +42,19 @@ npm install
 - In Azure Static Web Apps (or local `.env`), set:
   - `VITE_NEGOTIATE_URL` = `https://<your-func-name>.azurewebsites.net/api/negotiate`
   - `VITE_PUBSUB_HUB` = `lobby` (or your chosen hub)
+  - `VITE_FUNC_BASE` = `https://<your-func-name>.azurewebsites.net`
+
+## Lobby registry API
+- `GET /api/lobbies` → `{ lobbies: [{ lobbyCode, leaderName, playersCount, status, updatedAt }] }`
+- `POST /api/lobby` body:
+```json
+{
+  "lobbyCode": "ABCDE",
+  "leaderId": "uuid",
+  "leaderName": "Player",
+  "color": "#4f46e5",
+  "status": "open|started|closed",
+  "playersCount": 1
+}
+```
+Use these from the client to advertise a lobby when created/joined and to mark it started when the leader starts the game.
