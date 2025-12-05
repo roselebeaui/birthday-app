@@ -14,8 +14,9 @@
 }
 
 .stage {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
   gap: 1rem;
 }
 
@@ -42,3 +43,61 @@
 .button:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .hint { opacity: 0.8; }
+
+/* Lobby sidebar */
+.sidebar {
+  width: 300px;
+  background: #0b1220;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 12px;
+}
+.headerRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.form {
+  display: grid;
+  gap: 8px;
+}
+.row {
+  display: flex;
+  gap: 8px;
+}
+.colors {
+  display: grid;
+  gap: 6px;
+}
+.swatches {
+  display: flex;
+  gap: 6px;
+}
+.swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #111827;
+  cursor: pointer;
+}
+.party {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+.member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.ready { margin-left: auto; opacity: 0.8; font-size: 12px; }

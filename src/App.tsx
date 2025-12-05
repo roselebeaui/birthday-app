@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import BlockRunner from './pages/block_runner/BlockRunner'
 import Lobby from './pages/multiplayer/Lobby'
+import Navbar from './components/navbar'
 
 function Home() {
   return (
@@ -14,6 +15,7 @@ function Home() {
 export default function App() {
   return (
     <BrowserRouter>
+      <Navbar />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/runner" element={<BlockRunner />} />

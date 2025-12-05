@@ -1,5 +1,6 @@
 import styles from './BlockRunner.module.css'
 import { useEffect, useRef, useState } from 'react'
+import { useLobby, type Player } from '../multiplayer/useLobby'
 import type { Feature } from './features/types'
 import { hole, block, doubleBlock, stairs, laser, turret, swingBall, gravityWell, movingBlock, springPad, windZone, reverseGravity } from './features/library'
 
@@ -843,7 +844,85 @@ export default function BlockRunner() {
           <span className={styles.hint}>Press Space to jump</span>
           <span className={styles.hint}>Distance: {Math.floor(distance)}m</span>
         </div>
+        <LobbySidebar />
       </div>
     </section>
+  )
+}
+
+function LobbySidebar() {
+  const { state, joinLobby, setReady, startGame, createLobbyCode, connection } = useLobby()
+  const [name, setName] = useState('')
+  const [color, setColor] = useState('#4f46e5')
+  const [lobbyCode, setLobbyCode] = useState('')
+  const [joined, setJoined] = useState(false)
+
+  const colors = ['#ef4444','#22c55e','#3b82f6','#a855f7','#f59e0b','#ec4899']
+
+  const join = () => {
+    if (!name.trim()) return alert('Enter a name')
+    if (!lobbyCode.trim()) return alert('Enter a lobby code')
+    joinLobby({ lobbyCode, name, color })
+    setJoined(true)
+  }
+
+  const create = () => {
+    const code = createLobbyCode()
+    setLobbyCode(code)
+  }
+
+  return (
+    <aside className={styles.sidebar}>
+      <div className={styles.headerRow}>
+        <strong>Lobby</strong>
+        <span style={{ marginLeft: 'auto', fontSize: 12, opacity: 0.8 }}>
+          {connection === 'idle' ? 'Idle' : connection === 'connecting' ? 'Connecting…' : connection === 'connected' ? 'Connected' : 'Error'}
+        </span>
+      </div>
+      {!joined ? (
+        <div className={styles.form}>
+          <label>
+            <div style={{ fontSize: 12, opacity: 0.85 }}>Name</div>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Player" />
+          </label>
+          <div className={styles.colors}>
+            <div style={{ fontSize: 12, opacity: 0.85 }}>Color</div>
+            <div className={styles.swatches}>
+              {colors.map(c => (
+                <button key={c} className={styles.swatch} style={{ background: c, outline: c===color? '2px solid #111':'none' }} onClick={() => setColor(c)} />
+              ))}
+            </div>
+          </div>
+          <label>
+            <div style={{ fontSize: 12, opacity: 0.85 }}>Lobby Code</div>
+            <input value={lobbyCode} onChange={e => setLobbyCode(e.target.value.toUpperCase())} placeholder="ABC12" />
+          </label>
+          <div className={styles.row}>
+            <button className={styles.button} onClick={create}>Create</button>
+            <button className={styles.button} onClick={join}>Join</button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div className={styles.row}>
+            <span>Lobby: {lobbyCode}</span>
+            <button className={styles.button} onClick={() => navigator.clipboard.writeText(lobbyCode)}>Copy</button>
+          </div>
+          <div className={styles.party}>
+            {(state.players ?? []).map((p: Player) => (
+              <div key={p.id} className={styles.member}>
+                <span className={styles.dot} style={{ background: p.color }} />
+                <span>{p.name}{p.isLeader ? ' (Leader)' : ''}</span>
+                <span className={styles.ready}>{p.ready ? 'Ready' : 'Not Ready'}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.row}>
+            <button className={styles.button} onClick={() => setReady(!state.self?.ready)}>Ready</button>
+            <button className={styles.button} onClick={() => startGame()} disabled={!state.self?.isLeader}>Start</button>
+          </div>
+        </div>
+      )}
+    </aside>
   )
 }

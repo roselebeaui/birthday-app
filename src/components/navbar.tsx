@@ -8,7 +8,8 @@ export default function Navbar() {
 				<div className={styles.brand}>Devan Bait</div>
 				<ul className={styles.links}>
 					<li><Link to="/">Home</Link></li>
-					<li><Link to="/gallery">Gallery</Link></li>
+					<li><Link to="/runner">Runner</Link></li>
+					<li><Link to="/lobby">Lobby</Link></li>
 				</ul>
 			</nav>
 		</header>
