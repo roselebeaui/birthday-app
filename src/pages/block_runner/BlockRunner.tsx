@@ -859,10 +859,15 @@ function LobbySidebar() {
   const [lobbies, setLobbies] = useState<Array<{ lobbyCode: string; leaderName: string; playersCount: number }>>([])
   const [lobbiesStatus, setLobbiesStatus] = useState<'idle'|'loading'|'ok'|'error'>('idle')
   const [lobbiesUpdatedAt, setLobbiesUpdatedAt] = useState<string>('')
+  const [envDiag, setEnvDiag] = useState<{ base?: string; negotiate?: string; hub?: string }>({})
+  const [lastFetchPreview, setLastFetchPreview] = useState<string>('')
   // removed unused raw toggle for diagnostics
 
   useEffect(() => {
     const base = (import.meta as any).env?.VITE_FUNC_BASE as string | undefined
+    const negotiate = (import.meta as any).env?.VITE_NEGOTIATE_URL as string | undefined
+    const hub = (import.meta as any).env?.VITE_PUBSUB_HUB as string | undefined
+    setEnvDiag({ base, negotiate, hub })
     let timer: any
     async function load() {
       if (!base) return
@@ -874,13 +879,17 @@ function LobbySidebar() {
           setLobbies((data?.lobbies || []).slice(0, 25))
           setLobbiesStatus('ok')
           setLobbiesUpdatedAt(new Date().toLocaleTimeString())
+          try { setLastFetchPreview(JSON.stringify(data).slice(0, 240)) } catch {}
           console.log('Lobbies fetched OK', data)
         } else {
           setLobbiesStatus('error')
-          console.warn('Lobbies fetch failed', res.status, await res.text())
+          const txt = await res.text().catch(() => '')
+          setLastFetchPreview(`${res.status} ${txt}`.slice(0, 240))
+          console.warn('Lobbies fetch failed', res.status, txt)
         }
       } catch (e) {
         setLobbiesStatus('error')
+        try { setLastFetchPreview(String(e).slice(0, 240)) } catch {}
         console.error('Lobbies fetch error', e)
       }
     }
@@ -940,7 +949,7 @@ function LobbySidebar() {
             <button className={styles.button} onClick={join}>Join</button>
           </div>
           <AvailableLobbies lobbies={lobbies} onSelect={code => setLobbyCode(code)} />
-          <Diagnostics statusLabel={lobbiesStatus} updatedAt={lobbiesUpdatedAt} />
+          <Diagnostics statusLabel={lobbiesStatus} updatedAt={lobbiesUpdatedAt} env={envDiag} preview={lastFetchPreview} />
         </div>
       ) : (
         <div>
@@ -963,7 +972,7 @@ function LobbySidebar() {
             <button className={styles.button} onClick={() => startGame()} disabled={!state.self?.isLeader}>Start</button>
           </div>
           <AvailableLobbies lobbies={lobbies} onSelect={code => setLobbyCode(code)} />
-          <Diagnostics statusLabel={lobbiesStatus} updatedAt={lobbiesUpdatedAt} />
+          <Diagnostics statusLabel={lobbiesStatus} updatedAt={lobbiesUpdatedAt} env={envDiag} preview={lastFetchPreview} />
         </div>
       )}
     </aside>
@@ -995,12 +1004,20 @@ function AvailableLobbies({ lobbies, onSelect }: { lobbies: Array<{ lobbyCode: s
   )
 }
 
-function Diagnostics({ statusLabel, updatedAt }: { statusLabel: 'idle'|'loading'|'ok'|'error'; updatedAt: string }) {
+function Diagnostics({ statusLabel, updatedAt, env, preview }: { statusLabel: 'idle'|'loading'|'ok'|'error'; updatedAt: string; env?: { base?: string; negotiate?: string; hub?: string }; preview?: string }) {
   const color = statusLabel === 'ok' ? '#22c55e' : statusLabel === 'loading' ? '#f59e0b' : statusLabel === 'error' ? '#ef4444' : '#9ca3af'
   return (
-    <div style={{ marginTop: 6, fontSize: 12, display:'flex', alignItems:'center', gap:8 }}>
-      <span style={{ color }}>Status: {statusLabel}</span>
-      {updatedAt && <span style={{ opacity:0.7 }}>Updated: {updatedAt}</span>}
+    <div style={{ marginTop: 6, fontSize: 12 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <span style={{ color }}>Status: {statusLabel}</span>
+        {updatedAt && <span style={{ opacity:0.7 }}>Updated: {updatedAt}</span>}
+      </div>
+      <div style={{ marginTop:4, opacity:0.8 }}>
+        <div>Base: {env?.base || '(unset)'}</div>
+        <div>Negotiate: {env?.negotiate || '(unset)'}</div>
+        <div>Hub: {env?.hub || '(unset)'}</div>
+        {preview && <div style={{ marginTop:4 }}>Last fetch: {preview}</div>}
+      </div>
     </div>
   )
 }
