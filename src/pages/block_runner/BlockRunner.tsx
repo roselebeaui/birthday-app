@@ -901,6 +901,12 @@ function LobbySidebar() {
   const create = () => {
     const code = createLobbyCode()
     setLobbyCode(code)
+    // Advertise immediately so others can see it before you join
+    const base = (import.meta as any).env?.VITE_FUNC_BASE as string | undefined
+    if (base && name.trim()) {
+      const payload = { lobbyCode: code, leaderId: 'preview', leaderName: name, color, status: 'open', playersCount: 0 }
+      fetch(`${base}/api/lobby`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
+    }
   }
 
   return (
