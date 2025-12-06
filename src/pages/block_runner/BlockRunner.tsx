@@ -7,17 +7,51 @@ import { hole, block, doubleBlock, stairs, laser, turret, swingBall, gravityWell
 export default function BlockRunner() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [running, setRunning] = useState(false)
+  const [mode, setMode] = useState<'menu' | 'single' | 'create' | 'join'>('menu')
   const [distance, setDistance] = useState(0)
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
   const isDeadRef = useRef(false)
   const deathTimerRef = useRef(0)
   const particlesRef = useRef<Array<{ x: number; y: number; vx: number; vy: number; life: number; size: number }>>([])
+  // Shared lobby hook at top-level so game loop can emit positions
+  const { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby, updatePosition, announceDeath } = useLobby()
+  const stateRef = useRef<any>(state)
+  useEffect(() => { stateRef.current = state }, [state])
+  // Smoothed positions for remote players
+  const interpRef = useRef<Record<string, { x: number; y: number }>>({})
+  const [spectateId, setSpectateId] = useState<string | null>(null)
+
+  // Clear spectate when round resets or you revive
+  useEffect(() => {
+    if (!state.started || state.self?.alive) {
+      setSpectateId(null)
+    }
+  }, [state.started, state.self?.alive])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
     let raf: number | null = null
+    let lastEmit = 0
+    // unused for now; smoothing uses constant alpha
+    // Seeded RNG so all players share the same map in a lobby
+    const makeRNG = (seedStr: string) => {
+      let h = 2166136261 >>> 0
+      for (let i = 0; i < seedStr.length; i++) {
+        h ^= seedStr.charCodeAt(i)
+        h = Math.imul(h, 16777619)
+      }
+      let x = (h ^ 0x9e3779b9) >>> 0
+      return () => {
+        // LCG
+        x = (Math.imul(x, 1664525) + 1013904223) >>> 0
+        return (x >>> 0) / 4294967296
+      }
+    }
+    const seeded = stateRef.current?.lobbyCode && stateRef.current.started
+    const rng = seeded ? makeRNG(`${stateRef.current.lobbyCode}-${stateRef.current.difficulty || difficulty}`) : null
+    const rnd = () => (rng ? rng() : Math.random())
     const W = canvas.width = 1200
     const H = canvas.height = 600
 
@@ -48,108 +82,118 @@ export default function BlockRunner() {
     let firstWellPlaced = false
     // Optional lava segments: intervals where ground is deadly
     const lavaSegments: Array<{ start: number; end: number }> = []
+    const isActiveRound = !!stateRef.current?.started || mode === 'single'
     function generateChunk(count = 18) {
+      if (!isActiveRound) return
       for (let i = 0; i < count; i++) {
         // Force-place the first gravity well within 750m-1200m if not yet placed
         if (!firstWellPlaced && lastFeatureX >= 7500 && lastFeatureX <= 12000) {
           features.push(gravityWell(lastFeatureX + 40, 500, 0.45))
-          lastFeatureX += 300 + Math.random() * 220
+          lastFeatureX += 300 + rnd() * 220
           firstWellPlaced = true
           continue
         }
-        const choice = Math.random()
+        const choice = rnd()
         if (choice < 0.15) {
-          const safe = Math.random() < 0.5
-          const w = 32 + Math.floor(Math.random() * 24)
-          const h = 24 + Math.floor(Math.random() * 24)
-          features.push(block(lastFeatureX, w, h, safe, Math.random() < 0.25))
-          lastFeatureX += 180 + Math.random() * 100
+          const safe = rnd() < 0.5
+          const w = 32 + Math.floor(rnd() * 24)
+          const h = 24 + Math.floor(rnd() * 24)
+          features.push(block(lastFeatureX, w, h, safe, rnd() < 0.25))
+          lastFeatureX += 180 + rnd() * 100
         } else if (choice < 0.25) {
-          const size = 24 + Math.floor(Math.random() * 24)
-          const gap = 30 + Math.floor(Math.random() * 40)
+          const size = 24 + Math.floor(rnd() * 24)
+          const gap = 30 + Math.floor(rnd() * 40)
           const [b1, b2] = doubleBlock(lastFeatureX, gap, size)
-          ;(b1 as any).safe = Math.random() < 0.5
-          ;(b2 as any).safe = Math.random() < 0.5
+          ;(b1 as any).safe = rnd() < 0.5
+          ;(b2 as any).safe = rnd() < 0.5
           features.push(b1, b2)
-          lastFeatureX += gap + 200 + Math.random() * 120
+          lastFeatureX += gap + 200 + rnd() * 120
         } else if (choice < 0.4) {
-          const steps = 3 + Math.floor(Math.random() * 4)
-          const size = 22 + Math.floor(Math.random() * 20)
-          const rise = 12 + Math.floor(Math.random() * 16)
+          const steps = 3 + Math.floor(rnd() * 4)
+          const size = 22 + Math.floor(rnd() * 20)
+          const rise = 12 + Math.floor(rnd() * 16)
           features.push(...stairs(lastFeatureX, steps, size, rise))
-          lastFeatureX += 240 + Math.random() * 160
+          lastFeatureX += 240 + rnd() * 160
         } else if (choice < 0.55) {
-          const width = 80 + Math.floor(Math.random() * 100)
+          const width = 80 + Math.floor(rnd() * 100)
           features.push(hole(lastFeatureX, width))
-          lastFeatureX += width + 200 + Math.random() * 120
+          lastFeatureX += width + 200 + rnd() * 120
         } else if (choice < (difficulty === 'easy' ? 0.65 : difficulty === 'hard' ? 0.75 : 0.7)) {
-          features.push(laser(lastFeatureX, 24 + Math.floor(Math.random() * 24)))
-          lastFeatureX += 200 + Math.random() * 140
+          features.push(laser(lastFeatureX, 24 + Math.floor(rnd() * 24)))
+          lastFeatureX += 200 + rnd() * 140
         } else if (choice < (difficulty === 'easy' ? 0.78 : difficulty === 'hard' ? 0.86 : 0.82)) {
-          features.push(turret(lastFeatureX, 20, 20, 1.2 + Math.random(), Math.PI / 5, 280))
-          lastFeatureX += 220 + Math.random() * 160
+          features.push(turret(lastFeatureX, 20, 20, 1.2 + rnd(), Math.PI / 5, 280))
+          lastFeatureX += 220 + rnd() * 160
         } else if (choice < (difficulty === 'easy' ? 0.86 : difficulty === 'hard' ? 0.9 : 0.88)) {
           // moving platform
-          const dir: 'horizontal' | 'vertical' = Math.random() < 0.6 ? 'horizontal' : 'vertical'
-          features.push(movingBlock(lastFeatureX, 40, 14, dir, 160 + Math.random() * 120, 2 + Math.random() * 1.5, true))
-          lastFeatureX += 200 + Math.random() * 140
+          const dir: 'horizontal' | 'vertical' = rnd() < 0.6 ? 'horizontal' : 'vertical'
+          features.push(movingBlock(lastFeatureX, 40, 14, dir, 160 + rnd() * 120, 2 + rnd() * 1.5, true))
+          lastFeatureX += 200 + rnd() * 140
         } else if (choice < (difficulty === 'easy' ? 0.9 : difficulty === 'hard' ? 0.94 : 0.92)) {
           // spring pad
-          features.push(springPad(lastFeatureX, 28, 10, 16 + Math.random() * 6))
-          lastFeatureX += 180 + Math.random() * 120
+          features.push(springPad(lastFeatureX, 28, 10, 16 + rnd() * 6))
+          lastFeatureX += 180 + rnd() * 120
         } else if (choice < (difficulty === 'easy' ? 0.95 : difficulty === 'hard' ? 0.97 : 0.96)) {
           // gravity well zone with reduced gravity (500m width)
           features.push(gravityWell(lastFeatureX + 40, 500, 0.45))
-          lastFeatureX += 260 + Math.random() * 180
+          lastFeatureX += 260 + rnd() * 180
         } else if (choice < (difficulty === 'easy' ? 0.98 : difficulty === 'hard' ? 0.99 : 0.985)) {
           // wind zone in meters
           features.push(windZone(lastFeatureX, 250, 0.45))
-          lastFeatureX += 220 + Math.random() * 160
+          lastFeatureX += 220 + rnd() * 160
         } else if (choice < (difficulty === 'easy' ? 0.995 : difficulty === 'hard' ? 0.997 : 0.995)) {
           // reverse gravity stretch
           features.push(reverseGravity(lastFeatureX + 40, 180))
-          lastFeatureX += 240 + Math.random() * 180
+          lastFeatureX += 240 + rnd() * 180
         } else if (choice < 0.99) {
           // inject a short lava segment with suspended safe blocks
-          const segLen = 300 + Math.floor(Math.random() * 300)
+          const segLen = 300 + Math.floor(rnd() * 300)
           lavaSegments.push({ start: lastFeatureX, end: lastFeatureX + segLen })
           // place a few safe platforms over the lava
           let px = lastFeatureX + 60
           while (px < lastFeatureX + segLen - 60) {
-            const w = 40 + Math.floor(Math.random() * 40)
-            const h = 40 + Math.floor(Math.random() * 30)
-            const spike = Math.random() < 0.3
+            const w = 40 + Math.floor(rnd() * 40)
+            const h = 40 + Math.floor(rnd() * 30)
+            const spike = rnd() < 0.3
             features.push(block(px, w, h, true, spike))
-            px += w + 60 + Math.random() * 80
+            px += w + 60 + rnd() * 80
           }
           lastFeatureX += segLen + 200
         } else {
-          features.push(swingBall(lastFeatureX, 120 + Math.floor(Math.random() * 80), 10 + Math.floor(Math.random() * 8), 0.8 + Math.random() * 0.6))
-          lastFeatureX += 220 + Math.random() * 160
+          features.push(swingBall(lastFeatureX, 120 + Math.floor(rnd() * 80), 10 + Math.floor(rnd() * 8), 0.8 + rnd() * 0.6))
+          lastFeatureX += 220 + rnd() * 160
         }
       }
     }
-    // initial chunk (scaled by difficulty)
-    generateChunk(difficulty === 'easy' ? 24 : difficulty === 'hard' ? 44 : 36)
+    // initial chunk (scaled by difficulty) — skip in playground
+    if (isActiveRound) {
+      generateChunk(difficulty === 'easy' ? 24 : difficulty === 'hard' ? 44 : 36)
+    }
 
     // laser activation state: add reaction delay and pulse windows
     const laserState = new Map<number, { underTime: number; activeTime: number; isActive: boolean }>()
-    for (const f of features) {
-      if (f.kind === 'laser') laserState.set(f.x, { underTime: 0, activeTime: 0, isActive: false })
+    if (isActiveRound) {
+      for (const f of features) {
+        if (f.kind === 'laser') laserState.set(f.x, { underTime: 0, activeTime: 0, isActive: false })
+      }
     }
 
     // turret state and bullets
     const turretState = new Map<number, { cooldown: number; facingRight: boolean }>()
     type Bullet = { x: number; y: number; vx: number; vy: number; life: number }
     const bullets: Bullet[] = []
-    for (const f of features) {
-      if (f.kind === 'turret') turretState.set(f.x, { cooldown: 0, facingRight: true })
+    if (isActiveRound) {
+      for (const f of features) {
+        if (f.kind === 'turret') turretState.set(f.x, { cooldown: 0, facingRight: true })
+      }
     }
 
     type Obstacle = { x: number; w: number; h: number; safe?: boolean; spikes?: boolean }
-    let obstacles: Obstacle[] = features
-      .filter(f => f.kind === 'block' || f.kind === 'moving-block' || f.kind === 'falling-platform' || f.kind === 'spring-pad' || f.kind === 'bridge' || f.kind === 'ghost-block')
-      .map(f => ({ x: f.x, w: f.width ?? 32, h: f.height ?? 32, safe: f.safe ?? (f.kind !== 'block' ? true : false), spikes: (f as any).spikes }))
+    let obstacles: Obstacle[] = isActiveRound
+      ? features
+        .filter(f => f.kind === 'block' || f.kind === 'moving-block' || f.kind === 'falling-platform' || f.kind === 'spring-pad' || f.kind === 'bridge' || f.kind === 'ghost-block')
+        .map(f => ({ x: f.x, w: f.width ?? 32, h: f.height ?? 32, safe: f.safe ?? (f.kind !== 'block' ? true : false), spikes: (f as any).spikes }))
+      : []
 
     let canJump = false
     const jump = () => {
@@ -172,10 +216,20 @@ export default function BlockRunner() {
     window.addEventListener('keyup', onKeyUp)
 
     const triggerDeath = () => {
-      if (isDeadRef.current) return
+      // no deaths in playground lobby, but allow in single-player
+      if (isDeadRef.current || !isActiveRound) return
       isDeadRef.current = true
       deathTimerRef.current = 0
       particlesRef.current = []
+      // pass current distance explicitly to lobby so it records correctly
+      announceDeath(playerWorldX)
+      // Auto-select a spectate target if none chosen
+      try {
+        if (!spectateId) {
+          const candidates = (stateRef.current?.players || []).filter((p: any) => p.id !== stateRef.current?.self?.id && p.alive)
+          if (candidates.length > 0) setSpectateId(candidates[0].id)
+        }
+      } catch {}
       // explode player into particles
       const cols = 6
       const rows = 6
@@ -200,13 +254,112 @@ export default function BlockRunner() {
 
     const loop = () => {
       ctx.clearRect(0, 0, W, H)
-      // update camera based on player
-      if (!isDeadRef.current) {
-        cameraX = Math.max(0, playerWorldX - followOffset)
+      const isPlayground = !stateRef.current?.started && mode !== 'single'
+      // update camera: in playground, keep camera at 0; in game, follow
+      if (isPlayground) {
+        cameraX = 0
+        // hard reset any generated content/hazards while in playground
+        try {
+          // clear feature lists and runtime states
+          features.length = 0
+          lavaSegments.length = 0
+          obstacles.length = 0
+          bullets.length = 0
+          laserState.clear()
+          turretState.clear()
+          lastFeatureX = 0
+        } catch {}
+      } else {
+        if (!isDeadRef.current && !spectateId) {
+          cameraX = Math.max(0, playerWorldX - followOffset)
+        } else if (spectateId) {
+          const pos = stateRef.current?.playerPositions?.[spectateId]
+          const sx = pos ? (pos as any).x : playerWorldX
+          cameraX = Math.max(0, sx - followOffset)
+        }
       }
 
-      // extend course when approaching the end
-      if (playerWorldX > lastFeatureX - 800) {
+      // In playground, render only floor/ceiling and avatars; skip course generation
+      if (isPlayground) {
+        // floor
+        ctx.fillStyle = '#111'
+        ctx.fillRect(-cameraX, groundTop, W, groundHeight)
+        // ceiling
+        ctx.fillStyle = '#222'
+        ctx.fillRect(-cameraX, 0, W, ceilingHeight)
+        // simple movement in playground: allow left/right inside bounds, with jumping
+        if (!isDeadRef.current) {
+          if (held.left) vx = Math.max(vx - accel, -maxSpeed)
+          if (held.right) vx = Math.min(vx + accel, maxSpeed)
+          if (!held.left && !held.right) vx *= friction
+          playerWorldX = Math.max(0, Math.min(W - 20, playerWorldX + vx))
+          // apply gravity and vertical movement; clamp to ceiling/ground
+          vy += gravity
+          playerY = playerY + vy
+          // ceiling collision
+          if (playerY - 20 < ceilingBottom) {
+            playerY = ceilingBottom + 20
+            vy = Math.max(vy, 0)
+          }
+          // ground collision
+          if (playerY >= groundTop) {
+            playerY = groundTop
+            vy = 0
+          }
+        } else {
+          vx *= 0.92
+          playerWorldX = Math.max(0, Math.min(W - 20, playerWorldX + vx))
+          // keep on ground while dead (though deaths are blocked in playground)
+          playerY = groundTop
+        }
+        // draw local player
+        ctx.fillStyle = '#4f46e5'
+        ctx.fillRect(playerWorldX - cameraX, playerY - 20, 20, 20)
+        // draw remote players within bounds
+        const coopState = stateRef.current
+        for (const p of (coopState.players ?? [])) {
+          if (!coopState.self || p.id === coopState.self.id) continue
+          const pos = coopState.playerPositions?.[p.id]
+          if (!pos) continue
+          const targetX = Math.max(0, Math.min(W - 20, (pos as any).x))
+          const targetY = (pos as any).y
+          const cur = interpRef.current[p.id] || { x: targetX, y: targetY }
+          const alpha = 0.25
+          const sx = cur.x + (targetX - cur.x) * alpha
+          const sy = cur.y + (targetY - cur.y) * alpha
+          interpRef.current[p.id] = { x: sx, y: sy }
+          const rx = sx - cameraX
+          const ry = sy - 20
+          ctx.fillStyle = p.color
+          ctx.fillRect(rx, ry, 20, 20)
+          ctx.fillStyle = '#fff'
+          ctx.font = '12px system-ui'
+          ctx.fillText(p.name, rx, ry - 14)
+          // playground bump collision with local — only when both are grounded
+          const dx = (sx + 10) - (playerWorldX + 10)
+          const dy = (sy - 10) - (playerY - 10)
+          const dist = Math.hypot(dx, dy)
+          const minDist = 26
+          const bothGrounded = Math.abs(sy - groundTop) < 0.5 && Math.abs(playerY - groundTop) < 0.5
+          if (bothGrounded && dist > 0 && dist < minDist) {
+            const overlap = (minDist - dist)
+            const nx = dx / dist
+            const ny = dy / dist
+            // resolve primarily on axis of greatest penetration
+            if (Math.abs(dx) > Math.abs(dy)) {
+              playerWorldX = Math.max(0, Math.min(W - 20, playerWorldX - nx * overlap))
+              // light damping on horizontal component only
+              vx *= 0.7
+            } else {
+              playerY = Math.max(ceilingBottom + 20, Math.min(groundTop, playerY - ny * overlap))
+              vy = Math.min(vy, 0) // prevent upward stickiness
+            }
+          }
+        }
+      }
+
+      // extend course when approaching the end (skip during playground)
+      if (!isPlayground && playerWorldX > lastFeatureX - 800) {
         const prevLast = lastFeatureX
         generateChunk(12)
         // register new lasers
@@ -251,15 +404,17 @@ export default function BlockRunner() {
         segmentStart = hx + hw
       }
       // draw remaining ground after last hole
-      if (segmentStart < groundEnd) {
-        ctx.fillRect(segmentStart, groundTop, groundEnd - segmentStart, groundHeight)
-      }
-      // lava overlays
-      for (const seg of lavaSegments) {
-        const sx = seg.start - cameraX
-        const ex = seg.end - cameraX
-        ctx.fillStyle = '#b91c1c'
-        ctx.fillRect(sx, groundTop, ex - sx, groundHeight)
+      if (!isPlayground) {
+        if (segmentStart < groundEnd) {
+          ctx.fillRect(segmentStart, groundTop, groundEnd - segmentStart, groundHeight)
+        }
+        // lava overlays
+        for (const seg of lavaSegments) {
+          const sx = seg.start - cameraX
+          const ex = seg.end - cameraX
+          ctx.fillStyle = '#b91c1c'
+          ctx.fillRect(sx, groundTop, ex - sx, groundHeight)
+        }
       }
       // ceiling
       ctx.fillStyle = '#222'
@@ -275,15 +430,36 @@ export default function BlockRunner() {
               ctx.fillRect(tx, baseY, tw, ceilingHeight)
               // cone detection: vertical downward cone
               const st = turretState.get(t.x)!
-              const px = playerWorldX
-              const py = playerY - 10
+              // consider all alive players (local + remote) for detection/aiming
+              const targets: Array<{ x: number; y: number }> = []
+              if (!isDeadRef.current) targets.push({ x: playerWorldX, y: playerY - 10 })
+              const remote = stateRef.current?.players ? (stateRef.current.players as any[]) : []
+              for (const rp of remote) {
+                if (rp.id === stateRef.current?.self?.id) continue
+                if (!rp.alive) continue
+                const pos = interpRef.current[rp.id] || stateRef.current?.playerPositions?.[rp.id]
+                if (pos && typeof (pos as any).x === 'number' && typeof (pos as any).y === 'number') {
+                  targets.push({ x: (pos as any).x, y: (pos as any).y - 10 })
+                }
+              }
               const turretCenterX = t.x + tw / 2
               const turretCenterY = ceilingBottom
-              const dx = px - turretCenterX
-              const dy = py - turretCenterY
+              // check if ANY target is within cone
               const half = t.coneAngle ?? Math.PI / 6
               const coneLen = groundTop - turretCenterY
-              const inCone = dy > 0 && dy <= coneLen && Math.abs(dx) <= Math.tan(half) * dy
+              let inCone = false
+              let aim: { x: number; y: number } | null = null
+              let bestDist = Infinity
+              for (const tr of targets) {
+                const dx = tr.x - turretCenterX
+                const dy = tr.y - turretCenterY
+                const within = dy > 0 && dy <= coneLen && Math.abs(dx) <= Math.tan(half) * dy
+                if (within) {
+                  inCone = true
+                  const d2 = dx * dx + dy * dy
+                  if (d2 < bestDist) { bestDist = d2; aim = tr }
+                }
+              }
               // draw vertical cone outline (make border fully transparent)
               const spread = Math.tan(half) * coneLen
               ctx.beginPath()
@@ -300,10 +476,10 @@ export default function BlockRunner() {
               const difficultyMeters = Math.max(0, Math.floor(meters / 500))
               const rate = (t.fireRate ?? 1.5) * (1 + 0.25 * difficultyMeters) * (difficulty === 'hard' ? 1.2 : difficulty === 'easy' ? 0.9 : 1)
               st.cooldown = Math.max(0, st.cooldown - 1 / 60)
-              if (inCone && st.cooldown <= 0) {
-                // aim bullet at player's current position while in cone
-                const txp = px - turretCenterX
-                const typ = py - turretCenterY
+              if (inCone && st.cooldown <= 0 && aim) {
+                // aim bullet at the nearest target's current position
+                const txp = aim.x - turretCenterX
+                const typ = aim.y - turretCenterY
                 const len = Math.sqrt(txp * txp + typ * typ) || 1
                 const speedMul = difficulty === 'hard' ? 1.2 : difficulty === 'easy' ? 0.9 : 1
                 const speed = 7 + 1.5 * difficultyMeters * speedMul
@@ -314,37 +490,39 @@ export default function BlockRunner() {
               }
             }
 
-            // update and render bullets
-            ctx.fillStyle = '#f87171'
-            for (let i = bullets.length - 1; i >= 0; i--) {
-              const b = bullets[i]
-              b.life -= 1 / 60
-              b.x += b.vx
-              b.y += b.vy
-              // draw
-              ctx.beginPath()
-              ctx.arc(b.x - cameraX, b.y, 3, 0, Math.PI * 2)
-              ctx.fill()
-              // hit player?
-              const hit = playerWorldX < b.x + 3 && playerWorldX + 20 > b.x - 3 && playerY - 20 < b.y + 3 && playerY > b.y - 3
-              if (hit && !isDeadRef.current) {
-                triggerDeath()
+            // update and render bullets (skip in playground)
+            if (!isPlayground) {
+              ctx.fillStyle = '#f87171'
+              for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i]
+                b.life -= 1 / 60
+                b.x += b.vx
+                b.y += b.vy
+                // draw
+                ctx.beginPath()
+                ctx.arc(b.x - cameraX, b.y, 3, 0, Math.PI * 2)
+                ctx.fill()
+                // hit local player?
+                const hit = playerWorldX < b.x + 3 && playerWorldX + 20 > b.x - 3 && playerY - 20 < b.y + 3 && playerY > b.y - 3
+                if (hit && !isDeadRef.current) {
+                  triggerDeath()
+                }
+                // lifetime expired or off-screen
+                if (b.life <= 0 || b.y > H + 50 || b.y < -50) bullets.splice(i, 1)
               }
-              // lifetime expired or off-screen
-              if (b.life <= 0 || b.y > H + 50 || b.y < -50) bullets.splice(i, 1)
             }
-      // draw laser emitters and active beams
-      const lasers = features.filter(f => f.kind === 'laser')
-      const winds = features.filter(f => f.kind === 'wind-zone')
-      const shooters = features.filter(f => f.kind === 'shooter')
-      const saws = features.filter(f => f.kind === 'sawblade')
-      const boulders = features.filter(f => f.kind === 'boulder')
-      const ghosts = features.filter(f => f.kind === 'ghost-block')
-      const springs = features.filter(f => f.kind === 'spring-pad')
-      const movers = features.filter(f => f.kind === 'moving-block')
-      const fallers = features.filter(f => f.kind === 'falling-platform')
-      const bridges = features.filter(f => f.kind === 'bridge')
-      const rgravs = features.filter(f => f.kind === 'reverse-gravity')
+      // draw hazards and interactive features only during game (not playground)
+      const lasers = !isPlayground ? features.filter(f => f.kind === 'laser') : []
+      const winds = !isPlayground ? features.filter(f => f.kind === 'wind-zone') : []
+      const shooters = !isPlayground ? features.filter(f => f.kind === 'shooter') : []
+      const saws = !isPlayground ? features.filter(f => f.kind === 'sawblade') : []
+      const boulders = !isPlayground ? features.filter(f => f.kind === 'boulder') : []
+      const ghosts = !isPlayground ? features.filter(f => f.kind === 'ghost-block') : []
+      const springs = !isPlayground ? features.filter(f => f.kind === 'spring-pad') : []
+      const movers = !isPlayground ? features.filter(f => f.kind === 'moving-block') : []
+      const fallers = !isPlayground ? features.filter(f => f.kind === 'falling-platform') : []
+      const bridges = !isPlayground ? features.filter(f => f.kind === 'bridge') : []
+      const rgravs = !isPlayground ? features.filter(f => f.kind === 'reverse-gravity') : []
             // bridge: draw segments and progressively break by timer
             for (const br of bridges) {
               const segs = br.segments ?? 6
@@ -362,17 +540,16 @@ export default function BlockRunner() {
               }
             }
 
-            // reverse gravity zone: tint and flip gravity while inside
-            const inReverse = rgravs.find(z => {
+            // reverse gravity zone: tint and flip gravity while inside (skip in playground)
+            const inReverse = isPlayground ? null : rgravs.find(z => {
               const zw = z.zoneWidth ?? 1800
               return playerWorldX + 20 > z.x && playerWorldX < z.x + zw
             })
             if (inReverse) {
-              // tint
               ctx.fillStyle = 'rgba(59,130,246,0.12)'
               ctx.fillRect(inReverse.x - cameraX, 0, (inReverse.zoneWidth ?? 1800), H)
             }
-      const wells = features.filter(f => f.kind === 'gravity-well')
+      const wells = !isPlayground ? features.filter(f => f.kind === 'gravity-well') : []
             // wind zones: render subtle arrows and apply lateral push in air
             for (const w of winds) {
               const ww = w.windWidth ?? 2000
@@ -475,7 +652,19 @@ export default function BlockRunner() {
           ctx.fillRect(lx, ceilingBottom - 2, lw, 2)
         }
         // activation logic with delay and pulsing
-        const playerUnder = playerWorldX + 20 > l.x && playerWorldX < l.x + lw
+        // consider any alive player under the emitter
+        const targetsUnder: Array<{ x: number; y: number }> = []
+        if (!isDeadRef.current) targetsUnder.push({ x: playerWorldX, y: playerY })
+        const remPlayers = stateRef.current?.players ? (stateRef.current.players as any[]) : []
+        for (const rp of remPlayers) {
+          if (rp.id === stateRef.current?.self?.id) continue
+          if (!rp.alive) continue
+          const pos = interpRef.current[rp.id] || stateRef.current?.playerPositions?.[rp.id]
+          if (pos && typeof (pos as any).x === 'number') {
+            targetsUnder.push({ x: (pos as any).x, y: (pos as any).y })
+          }
+        }
+        const playerUnder = targetsUnder.some(t => t.x + 20 > l.x && t.x < l.x + lw)
         const dt = 1 / 60
         if (playerUnder && !st.isActive) {
           st.underTime += dt
@@ -553,8 +742,8 @@ export default function BlockRunner() {
         }
       }
 
-      // player physics
-      if (!isDeadRef.current) {
+      // player physics (skip during playground; handled above)
+      if (!isPlayground && !isDeadRef.current) {
         if (held.left) vx = Math.max(vx - accel, -maxSpeed)
         if (held.right) vx = Math.min(vx + accel, maxSpeed)
         if (!held.left && !held.right) vx *= friction
@@ -572,8 +761,8 @@ export default function BlockRunner() {
         playerWorldX = Math.max(0, playerWorldX + vx)
       }
 
-      // apply gravity scale when inside a gravity well
-      const gScale = inWell ? (inWell.gravityScale ?? 0.4) : 1
+      // apply gravity scale when inside a gravity well (skip during playground)
+      const gScale = isPlayground ? 1 : (inWell ? (inWell.gravityScale ?? 0.4) : 1)
       const reverseMul = inReverse ? -1 : 1
       vy += (isDeadRef.current ? gravity * 0.4 : gravity) * gScale * reverseMul
       playerY = playerY + vy
@@ -590,7 +779,7 @@ export default function BlockRunner() {
           vy = 0
         }
       }
-      // ground collision (skip when over a hole)
+      // ground collision (skip when over a hole; playground pins to ground)
       const overHole = (() => {
         for (const h of holes) {
           const hw = h.width ?? 80
@@ -612,8 +801,8 @@ export default function BlockRunner() {
       } else {
         // in reverse gravity, treat ceiling as ground already handled above
       }
-      // death on lava ground contact
-      if (overLava && playerY >= groundTop && !isDeadRef.current) {
+      // death on lava ground contact (not applicable in playground)
+      if (!isPlayground && overLava && playerY >= groundTop && !isDeadRef.current) {
         triggerDeath()
       }
 
@@ -621,11 +810,50 @@ export default function BlockRunner() {
       if ((playerY >= H - 1 || playerY <= 1) && !isDeadRef.current) {
         triggerDeath()
       }
-      // draw player or death effect
-      if (!isDeadRef.current) {
+      // timing
+      // smoothing uses constant alpha; no frame timing needed
+
+      // draw player or death effect (skip: already drawn in playground)
+      if (!isPlayground && !isDeadRef.current) {
         ctx.fillStyle = '#4f46e5'
         ctx.fillRect(playerWorldX - cameraX, playerY - 20, 20, 20)
-      } else {
+        // draw remote players sharing the same instance and apply simple bump collisions
+        const radius = 12
+        const coopState = stateRef.current
+        for (const p of (coopState.players ?? [])) {
+          if (!coopState.self || p.id === coopState.self.id) continue
+          const pos = coopState.playerPositions?.[p.id]
+          if (!pos) continue
+          // smooth towards target using simple lerp
+          const targetX = (pos as any).x
+          const targetY = (pos as any).y
+          const cur = interpRef.current[p.id] || { x: targetX, y: targetY }
+          const alpha = 0.25 // smoothing factor
+          const sx = cur.x + (targetX - cur.x) * alpha
+          const sy = cur.y + (targetY - cur.y) * alpha
+          interpRef.current[p.id] = { x: sx, y: sy }
+          const rx = sx - cameraX
+          const ry = sy - 20
+          // render remote avatar as a 20x20 block (same as local)
+          ctx.fillStyle = p.color
+          ctx.fillRect(rx, ry, 20, 20)
+          ctx.fillStyle = '#fff'
+          ctx.font = '12px system-ui'
+          ctx.fillText(p.name, rx, ry - radius - 4)
+          // bump collision vs local
+          const dx = (sx + 10) - (playerWorldX + 10)
+          const dy = (sy - 10) - (playerY - 10)
+          const dist = Math.hypot(dx, dy)
+          const minDist = radius * 2
+          if (dist > 0 && dist < minDist) {
+            const overlap = minDist - dist
+            const nx = dx / dist
+            const ny = dy / dist
+            playerWorldX -= nx * (overlap / 2)
+            playerY -= ny * (overlap / 2)
+          }
+        }
+      } else if (!isPlayground) {
         // particles-only explosion (no lingering pixel ghost)
         ctx.fillStyle = '#a58aff'
         for (let k = particlesRef.current.length - 1; k >= 0; k--) {
@@ -693,10 +921,10 @@ export default function BlockRunner() {
         ctx.stroke()
       }
 
-      // platform/death collision (resolve both vertical and horizontal)
+      // platform/death collision (resolve both vertical and horizontal) — skip in playground
       let landedOnSafe = false
       const playerRect = { x: playerWorldX, y: playerY - 20, w: 20, h: 20 }
-      for (const o of obstacles) {
+      for (const o of (isPlayground ? [] : obstacles)) {
         const rect = { x: o.x, y: groundTop - o.h, w: o.w, h: o.h }
         // skip ghost blocks when invisible
         if (ghosts.find(g => g.x === o.x)) {
@@ -789,30 +1017,31 @@ export default function BlockRunner() {
         vy = 0
       }
 
-      // update jump availability: on ground or safely landed on a platform
-      canJump = landedOnSafe || playerY === groundTop
+      // update jump availability: on ground or safely landed on a platform (playground: ground only)
+      canJump = isPlayground ? (playerY === groundTop) : (landedOnSafe || playerY === groundTop)
 
-      // if death animation finished, show game over overlay and stop
+      // after death animation completes, keep running and allow spectating via UI
       if (isDeadRef.current && deathTimerRef.current > 1.6 && particlesRef.current.length === 0) {
-        setRunning(false)
-        cancelAnimationFrame(raf!)
-        raf = null
-        isDeadRef.current = false
-        deathTimerRef.current = 0
-        particlesRef.current = []
-        // draw overlay once
-        ctx.fillStyle = 'rgba(0,0,0,0.6)'
-        ctx.fillRect(0, 0, W, H)
-        ctx.fillStyle = '#fff'
-        ctx.font = 'bold 20px system-ui'
-        ctx.textAlign = 'center'
-        ctx.fillText('Game Over - Press Start', W / 2, H / 2 - 20)
-        ctx.fillText(`Distance: ${Math.floor(distance)}m`, W / 2, H / 2 + 20)
-        return
+        // no-op: UI below handles spectate selection
+      }
+
+      // overlay title in playground for visual context
+      if (isPlayground) {
+        ctx.fillStyle = 'rgba(255,255,255,0.18)'
+        ctx.font = 'bold 48px system-ui'
+        const label = 'Playground'
+        const tw = ctx.measureText(label).width
+        ctx.fillText(label, Math.max(20, W / 2 - tw / 2), Math.max(80, H / 2))
       }
 
       // distance counter (pixels to meters approx)
       setDistance(meters)
+      // emit local position at ~20Hz to co-op lobby (both playground and game)
+      const now = performance.now()
+      if (now - lastEmit > 50) {
+        updatePosition(playerWorldX, playerY)
+        lastEmit = now
+      }
 
       raf = requestAnimationFrame(loop)
     }
@@ -824,43 +1053,137 @@ export default function BlockRunner() {
       window.removeEventListener('keyup', onKeyUp)
       if (raf) cancelAnimationFrame(raf)
     }
-  }, [running, difficulty])
+  }, [running, difficulty, state.started, state.lobbyCode, mode])
+
+  // Auto-run the loop in lobby playground when a lobby is joined but game hasn't started
+  useEffect(() => {
+    const inLobbyPlayground = !!state.lobbyCode && !state.started
+    if (inLobbyPlayground && !running) {
+      setRunning(true)
+    }
+  }, [state.lobbyCode, state.started, running])
 
   return (
     <section className={styles.wrapper}>
       <h1 className={styles.title}>Block Runner</h1>
       <div className={styles.stage}>
-        <canvas ref={canvasRef} className={styles.canvas} aria-label="Block Runner canvas" />
-        <div className={styles.controls}>
-          {!running && (
-            <div className={styles.overlay}>
-              <div className={styles.difficultyRow}>
-                <button className={styles.button} style={{ marginRight: 8 }} onClick={() => { setDifficulty('easy'); setRunning(true) }}>Easy</button>
-                <button className={styles.button} style={{ marginRight: 8 }} onClick={() => { setDifficulty('medium'); setRunning(true) }}>Medium</button>
-                <button className={styles.button} onClick={() => { setDifficulty('hard'); setRunning(true) }}>Hard</button>
+        <div />
+        <div className={styles.centerCol}>
+          <canvas ref={canvasRef} className={styles.canvas} aria-label="Block Runner canvas" />
+          {/* overlay reserved for center-only UI like canvas-specific prompts */}
+          <div className={styles.hintsRow} aria-label="Game info">
+            <span className={styles.hint}>Press Space to jump</span>
+            <span className={styles.hint}>Distance: {Math.floor(distance)}m</span>
+          </div>
+        </div>
+        {/* Right column: menu, single-player choices, or lobby sidebar */}
+        {mode === 'menu' ? (
+          <div className={styles.sidebar}>
+            <div className={styles.panel}>
+              <div className={styles.buttonRow}>
+                <button className={styles.button} onClick={() => setMode('single')}>Single Player</button>
+                <button className={styles.button} onClick={() => setMode('create')}>Create Lobby</button>
+                <button className={styles.button} onClick={() => setMode('join')}>Join Lobby</button>
               </div>
             </div>
-          )}
-          <span className={styles.hint}>Press Space to jump</span>
-          <span className={styles.hint}>Distance: {Math.floor(distance)}m</span>
-        </div>
-        <LobbySidebar />
+          </div>
+        ) : mode === 'single' ? (
+          <div className={styles.sidebar}>
+            <div className={styles.panel}>
+              {!running ? (
+                <>
+                  <h3 className={styles.title}>Choose Difficulty</h3>
+                  <div className={styles.buttonRow}>
+                    <button className={styles.button} onClick={() => { setDifficulty('easy'); setRunning(true) }}>Easy</button>
+                    <button className={styles.button} onClick={() => { setDifficulty('medium'); setRunning(true) }}>Medium</button>
+                    <button className={styles.button} onClick={() => { setDifficulty('hard'); setRunning(true) }}>Hard</button>
+                  </div>
+                  <div className={styles.row}>
+                    <button className={styles.button} onClick={() => { setRunning(false); setMode('menu') }}>Back</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className={styles.title}>Single Player</h3>
+                  <div className={styles.row}>
+                    {isDeadRef.current && (
+                      <button className={styles.button} onClick={() => {
+                        // Restart: stop, clear distance, revive, then start
+                        setRunning(false)
+                        setDistance(0)
+                        isDeadRef.current = false
+                        deathTimerRef.current = 0
+                        particlesRef.current = []
+                        setTimeout(() => setRunning(true), 0)
+                      }}>Restart</button>
+                    )}
+                    <button className={styles.button} onClick={() => {
+                      // Go back to difficulty chooser without exiting single-player
+                      setRunning(false)
+                      setDistance(0)
+                      isDeadRef.current = false
+                    }}>Choose New Difficulty</button>
+                    <button className={`${styles.button} ${styles['button--danger']}`} onClick={() => {
+                      // Exit single-player and return to menu
+                      setRunning(false)
+                      setDistance(0)
+                      isDeadRef.current = false
+                      setMode('menu')
+                    }}>Exit</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          <LobbySidebar
+          mode={mode}
+          setMode={setMode}
+          setDifficulty={setDifficulty}
+          setRunning={setRunning}
+          lobby={{ state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby }}
+          spectateId={spectateId}
+          setSpectateId={setSpectateId}
+          />
+        )}
+        
       </div>
+      
     </section>
   )
 }
 
-function LobbySidebar() {
-  const { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby } = useLobby()
+  type LobbySidebarProps = {
+    mode: 'menu' | 'single' | 'create' | 'join';
+    setMode: (m: 'menu' | 'single' | 'create' | 'join') => void;
+    setDifficulty: (d: 'easy' | 'medium' | 'hard') => void;
+    setRunning: (r: boolean) => void;
+    lobby: {
+      state: any;
+      joinLobby: any;
+      setReady: any;
+      startGame: any;
+      createLobbyCode: any;
+      connection: any;
+      leaveLobby: any;
+    };
+    spectateId: string | null;
+    setSpectateId: (id: string | null) => void;
+  };
+
+  function LobbySidebar({ mode, setMode, setDifficulty, setRunning, lobby, spectateId, setSpectateId }: LobbySidebarProps) {
+  const { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby } = lobby
   const [name, setName] = useState('')
   const [color, setColor] = useState('#4f46e5')
   const [lobbyCode, setLobbyCode] = useState('')
   const [joined, setJoined] = useState(false)
+  const [selectedDifficulty, setSelectedDifficulty] = useState<'easy'|'medium'|'hard'>('medium')
   const [lobbies, setLobbies] = useState<Array<{ lobbyCode: string; leaderName: string; playersCount: number }>>([])
   const [lobbiesStatus, setLobbiesStatus] = useState<'idle'|'loading'|'ok'|'error'>('idle')
   const [lobbiesUpdatedAt, setLobbiesUpdatedAt] = useState<string>('')
   const [envDiag, setEnvDiag] = useState<{ base?: string; negotiate?: string; hub?: string }>({})
   const [lastFetchPreview, setLastFetchPreview] = useState<string>('')
+  // removed negotiate preview state since Test Negotiate button was removed
   // removed unused raw toggle for diagnostics
 
   useEffect(() => {
@@ -869,8 +1192,13 @@ function LobbySidebar() {
     const hub = (import.meta as any).env?.VITE_PUBSUB_HUB as string | undefined
     setEnvDiag({ base, negotiate, hub })
     let timer: any
-    async function load() {
-      if (!base) return
+    const fetchLobbies = async () => {
+      if (!base) {
+        setLobbiesStatus('error')
+        setLastFetchPreview('Missing VITE_FUNC_BASE env; cannot fetch /api/lobbies')
+        console.warn('Lobbies fetch skipped: VITE_FUNC_BASE is undefined')
+        return
+      }
       try {
         setLobbiesStatus('loading')
         const res = await fetch(`${base}/api/lobbies`)
@@ -893,8 +1221,8 @@ function LobbySidebar() {
         console.error('Lobbies fetch error', e)
       }
     }
-    load()
-    timer = setInterval(load, 10000)
+    fetchLobbies()
+    timer = setInterval(fetchLobbies, 10000)
     return () => clearInterval(timer)
   }, [])
 
@@ -903,7 +1231,7 @@ function LobbySidebar() {
   const join = () => {
     if (!name.trim()) return alert('Enter a name')
     if (!lobbyCode.trim()) return alert('Enter a lobby code')
-    joinLobby({ lobbyCode, name, color })
+    joinLobby({ lobbyCode, name, color, isLeader: false })
     setJoined(true)
   }
 
@@ -917,8 +1245,15 @@ function LobbySidebar() {
       const payload = { lobbyCode: code, leaderId: 'preview', leaderName, color, status: 'open', playersCount: 0 }
       fetch(`${base}/api/lobby`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
     }
+    // Immediately join the newly created lobby and show party view
+    const leaderName = name.trim() || 'Player'
+    joinLobby({ lobbyCode: code, name: leaderName, color, isLeader: true })
+    setJoined(true)
   }
 
+  if (mode !== 'create' && mode !== 'join' && !joined) {
+    return null
+  }
   return (
     <aside className={styles.sidebar}>
       <div className={styles.headerRow}>
@@ -926,77 +1261,245 @@ function LobbySidebar() {
         <span style={{ marginLeft: 'auto', fontSize: 12, opacity: 0.8 }}>
           {connection === 'idle' ? 'Idle' : connection === 'connecting' ? 'Connecting…' : connection === 'connected' ? 'Connected' : 'Error'}
         </span>
+        {/* Hide verbose socket error message per request */}
+        {/* Reconnect and Test Negotiate buttons removed per request */}
+        {connection === 'connected' && (
+          <button
+            type="button"
+            className={`${styles.button} ${styles['button--ghost']}`}
+            style={{ padding: '2px 8px', fontSize: 12, marginLeft: 8 }}
+            onClick={() => {
+              try {
+                const nm = (name || 'Player').trim()
+                if (lobbyCode) joinLobby({ lobbyCode, name: nm, color, isLeader: !!state.self?.isLeader })
+              } catch (e) {
+                console.warn('Try join again failed', e)
+              }
+            }}
+          >Try Join Again</button>
+        )}
       </div>
       {!joined ? (
         <div className={styles.form}>
-          <label>
-            <div style={{ fontSize: 12, opacity: 0.85 }}>Name</div>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="Player" />
-          </label>
-          <div className={styles.colors}>
-            <div style={{ fontSize: 12, opacity: 0.85 }}>Color</div>
-            <div className={styles.swatches}>
-              {colors.map(c => (
-                <button key={c} className={styles.swatch} style={{ background: c, outline: c===color? '2px solid #111':'none' }} onClick={() => setColor(c)} />
-              ))}
-            </div>
-          </div>
-          <label>
-            <div style={{ fontSize: 12, opacity: 0.85 }}>Lobby Code</div>
-            <input value={lobbyCode} onChange={e => setLobbyCode(e.target.value.toUpperCase())} placeholder="ABC12" />
-          </label>
+          {mode === 'create' || mode === 'join' ? (
+            <>
+              <label>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>Name</div>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="Player" />
+              </label>
+              <div className={styles.colors}>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>Color</div>
+                <div className={styles.swatches}>
+                  {colors.map(c => (
+                    <button
+                      key={c}
+                      className={styles.swatch}
+                      style={{
+                        background: c,
+                        outline: c === color ? '2px solid #fff' : 'none',
+                        boxShadow: c === color ? '0 0 0 2px rgba(255,255,255,0.35) inset' : 'none'
+                      }}
+                      onClick={() => setColor(c)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : null}
+          {mode === 'join' ? (
+            <>
+              <AvailableLobbies lobbies={lobbies} selectedCode={lobbyCode} onSelect={code => setLobbyCode(code)} onRefresh={() => {
+                // manual fetch trigger
+                const base = (import.meta as any).env?.VITE_FUNC_BASE as string | undefined
+                if (!base) {
+                  setLobbiesStatus('error')
+                  setLastFetchPreview('Missing VITE_FUNC_BASE env; cannot fetch /api/lobbies')
+                  console.warn('Manual lobbies fetch skipped: VITE_FUNC_BASE is undefined')
+                  return
+                }
+                setLobbiesStatus('loading')
+                fetch(`${base}/api/lobbies`).then(async r => {
+                  if (r.ok) {
+                    const data = await r.json()
+                    setLobbies((data?.lobbies || []).slice(0, 25))
+                    setLobbiesStatus('ok')
+                    setLobbiesUpdatedAt(new Date().toLocaleTimeString())
+                    try { setLastFetchPreview(JSON.stringify(data).slice(0, 240)) } catch {}
+                  } else {
+                    const txt = await r.text().catch(() => '')
+                    setLobbiesStatus('error')
+                    setLastFetchPreview(`${r.status} ${txt}`.slice(0, 240))
+                  }
+                }).catch(e => {
+                  setLobbiesStatus('error')
+                  try { setLastFetchPreview(String(e).slice(0, 240)) } catch {}
+                })
+              }} />
+              <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>Select a lobby above to join.</div>
+            </>
+          ) : null}
           <div className={styles.row}>
-            <button className={styles.button} onClick={create}>Create</button>
-            <button className={styles.button} onClick={join}>Join</button>
+            {mode === 'create' && <button type="button" className={styles.button} onClick={create}>Create</button>}
+            {mode === 'join' && <button type="button" className={styles.button} onClick={join} disabled={!lobbyCode}>Join</button>}
+            <button type="button" className={styles.button} onClick={() => setMode('menu')}>Back</button>
           </div>
-          <AvailableLobbies lobbies={lobbies} onSelect={code => setLobbyCode(code)} />
+          
           <Diagnostics statusLabel={lobbiesStatus} updatedAt={lobbiesUpdatedAt} env={envDiag} preview={lastFetchPreview} />
         </div>
       ) : (
         <div>
           <div className={styles.row}>
-            <span>Lobby: {lobbyCode}</span>
-            <button className={styles.button} onClick={() => navigator.clipboard.writeText(lobbyCode)}>Copy</button>
-            <button className={styles.button} onClick={() => { leaveLobby(); setJoined(false); setLobbyCode(''); }}>Leave Lobby</button>
+            <span className={styles.codeBadge}>Lobby: {lobbyCode}</span>
+            <button
+              className={`${styles.button} ${styles['button--danger']}`}
+              style={{ marginLeft: 'auto' }}
+              onClick={() => { leaveLobby(); setJoined(false); setLobbyCode(''); }}
+            >
+              Leave Lobby
+            </button>
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>Difficulty:</div>
+          <div className={styles.buttonRow}>
+            {(['easy','medium','hard'] as const).map(d => (
+              <button
+                key={d}
+                className={`${styles.button} ${selectedDifficulty===d ? styles['button--selected'] : ''}`}
+                onClick={() => setSelectedDifficulty(d)}
+                disabled={!state.self?.isLeader}
+              >
+                {d[0].toUpperCase() + d.slice(1)}
+              </button>
+            ))}
           </div>
           <div className={styles.party}>
             {(state.players ?? []).map((p: Player) => (
               <div key={p.id} className={styles.member}>
                 <span className={styles.dot} style={{ background: p.color }} />
                 <span>{p.name}{p.isLeader ? ' (Leader)' : ''}</span>
-                <span className={styles.ready}>{p.ready ? 'Ready' : 'Not Ready'}</span>
+                <span className={styles.ready}>{p.status || (p.ready ? 'Ready' : 'Not Ready')}</span>
+                {state.distances && p.status === 'Deceased' && (
+                  <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.8 }}>Distance: {Math.floor((state.distances[p.id] || 0) / 10)}m</span>
+                )}
               </div>
             ))}
           </div>
-          <div className={styles.row}>
-            <button className={styles.button} onClick={() => setReady(!state.self?.ready)}>Ready</button>
-            <button className={styles.button} onClick={() => startGame()} disabled={!state.self?.isLeader}>Start</button>
+          {/* Simple co-op overlay: show remote players positions */}
+          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.8 }}>
+            {Object.entries(state.playerPositions || {}).map(([pid, pos]) => {
+              const pinfo = state.players.find((pp: Player) => pp.id === pid)
+              const name = pid === state.self?.id ? 'You' : (pinfo?.name || 'Player')
+              return (
+                <span key={pid} style={{ marginRight: 8 }}>
+                  {name}: ({Math.round((pos as any).x)}, {Math.round((pos as any).y)})
+                </span>
+              )
+            })}
           </div>
-          <AvailableLobbies lobbies={lobbies} onSelect={code => setLobbyCode(code)} />
+          <div className={styles.partyActions}>
+            <button type="button" className={`${styles.button} ${styles['button--primary']}`} onClick={() => setReady(!state.self?.ready)}>
+              {state.self?.ready ? 'Unready' : 'Ready'}
+            </button>
+            <button
+              type="button"
+              className={styles.button}
+              onClick={() => { setDifficulty(selectedDifficulty); startGame(selectedDifficulty); }}
+              disabled={!state.self?.isLeader || !(state.players && state.players.length > 0 && state.players.every((p: Player) => p.ready))}
+            >
+              Start
+            </button>
+          </div>
+          {/* Spectate controls when you are dead */}
+          {state.self && !state.self.alive && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>You are dead — spectate a teammate:</div>
+              <div className={styles.row}>
+                {(state.players || []).filter((p: Player) => p.id !== state.self?.id && p.alive).map((p: Player) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={`${styles.button} ${spectateId === p.id ? styles['button--selected'] : ''}`}
+                    onClick={() => setSpectateId(p.id)}
+                  >
+                    Spectate {p.name}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`${styles.button} ${!spectateId ? styles['button--selected'] : ''}`}
+                  onClick={() => setSpectateId(null)}
+                >
+                  Free Camera
+                </button>
+              </div>
+            </div>
+          )}
+          {/* Leaderboard after round over */}
+          {state.roundResults && state.roundResults.length > 0 && !state.started && (
+            <div style={{ marginTop: 10, padding: 8, border: '1px solid #eee', borderRadius: 6 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Last Round Results</div>
+              {(state.roundResults as Array<{ playerId: string; name: string; distance: number }>)
+                .slice()
+                .sort((a: { distance: number }, b: { distance: number }) => (b.distance - a.distance))
+                .map((r: { playerId: string; name: string; distance: number }) => (
+                  <div key={r.playerId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span>{r.name}</span>
+                    <span>{Math.floor((r.distance || 0) / 10)}m</span>
+                  </div>
+                ))}
+              <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}>
+                Everyone is set to Unready. Ready up to start again.
+              </div>
+            </div>
+          )}
           <Diagnostics statusLabel={lobbiesStatus} updatedAt={lobbiesUpdatedAt} env={envDiag} preview={lastFetchPreview} />
+          {/* Sync start/difficulty across all clients when leader starts */}
+          <SyncStarter state={state} setDifficulty={setDifficulty} setRunning={setRunning} />
         </div>
       )}
     </aside>
   )
 }
 
-function AvailableLobbies({ lobbies, onSelect }: { lobbies: Array<{ lobbyCode: string; leaderName: string; playersCount: number }>; onSelect: (code: string) => void }) {
+function SyncStarter({ state, setDifficulty, setRunning }: { state: any; setDifficulty: (d: 'easy'|'medium'|'hard') => void; setRunning: (r: boolean) => void }) {
+  const startedRef = useRef<boolean>(false)
+  useEffect(() => {
+    if (state.started && !startedRef.current) {
+      startedRef.current = true
+      if (state.difficulty) setDifficulty(state.difficulty)
+      setRunning(true)
+    }
+    if (!state.started) {
+      startedRef.current = false
+    }
+  }, [state.started, state.difficulty])
+  return null
+}
+
+function AvailableLobbies({ lobbies, selectedCode, onSelect, onRefresh }: { lobbies: Array<{ lobbyCode: string; leaderName: string; playersCount: number }>; selectedCode?: string; onSelect: (code: string) => void; onRefresh?: () => void }) {
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
         <div style={{ fontSize: 12, opacity: 0.85 }}>Available Lobbies</div>
-        <button className={styles.button} style={{ padding:'2px 6px', fontSize:12 }} onClick={() => location.reload()}>Refresh</button>
+        <button type="button" className={styles.button} style={{ padding:'2px 6px', fontSize:12 }} onClick={() => onRefresh ? onRefresh() : null}>Refresh</button>
       </div>
       {lobbies.length === 0 ? (
         <div style={{ opacity: 0.7, fontSize: 12 }}>No active lobbies yet</div>
       ) : (
         <div className={styles.party}>
           {lobbies.map(l => (
-            <div key={l.lobbyCode} className={styles.member}>
+            <div
+              key={l.lobbyCode}
+              className={styles.member}
+              onClick={() => onSelect(l.lobbyCode)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(l.lobbyCode) }}
+              style={{ cursor: 'pointer', outline: selectedCode === l.lobbyCode ? '2px solid #4f46e5' : 'none', borderRadius: 6 }}
+            >
               <span>{l.lobbyCode}</span>
               <span style={{ opacity: 0.8 }}>by {l.leaderName}</span>
               <span className={styles.ready}>{l.playersCount} player(s)</span>
-              <button className={styles.button} style={{ marginLeft: 8 }} onClick={() => onSelect(l.lobbyCode)}>Join</button>
+              <button type="button" className={styles.button} style={{ marginLeft: 8 }} onClick={(e) => { e.stopPropagation(); onSelect(l.lobbyCode) }}>Select</button>
             </div>
           ))}
         </div>
@@ -1008,7 +1511,7 @@ function AvailableLobbies({ lobbies, onSelect }: { lobbies: Array<{ lobbyCode: s
 function Diagnostics({ statusLabel, updatedAt, env, preview }: { statusLabel: 'idle'|'loading'|'ok'|'error'; updatedAt: string; env?: { base?: string; negotiate?: string; hub?: string }; preview?: string }) {
   const color = statusLabel === 'ok' ? '#22c55e' : statusLabel === 'loading' ? '#f59e0b' : statusLabel === 'error' ? '#ef4444' : '#9ca3af'
   return (
-    <div style={{ marginTop: 6, fontSize: 12 }}>
+    <div style={{ marginTop: 6, fontSize: 12, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
         <span style={{ color }}>Status: {statusLabel}</span>
         {updatedAt && <span style={{ opacity:0.7 }}>Updated: {updatedAt}</span>}
@@ -1017,7 +1520,9 @@ function Diagnostics({ statusLabel, updatedAt, env, preview }: { statusLabel: 'i
         <div>Base: {env?.base || '(unset)'}</div>
         <div>Negotiate: {env?.negotiate || '(unset)'}</div>
         <div>Hub: {env?.hub || '(unset)'}</div>
-        {preview && <div style={{ marginTop:4 }}>Last fetch: {preview}</div>}
+        {preview && <div style={{ marginTop:4 }}>{'Last fetch: '}
+          <span style={{ display:'inline', wordBreak:'break-word', overflowWrap:'anywhere' }}>{preview}</span>
+        </div>}
       </div>
     </div>
   )

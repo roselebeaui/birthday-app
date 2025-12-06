@@ -15,13 +15,16 @@ export default function Lobby() {
   const join = () => {
     if (!name.trim()) return alert('Enter a name')
     if (!lobbyCode.trim()) return alert('Enter a lobby code')
-    joinLobby({ lobbyCode, name, color })
+    joinLobby({ lobbyCode, name, color, isLeader: false })
     setJoined(true)
   }
 
   const createLobby = () => {
     const code = createLobbyCode()
     setLobbyCode(code)
+    const leaderName = name.trim() || 'Player'
+    joinLobby({ lobbyCode: code, name: leaderName, color, isLeader: true })
+    setJoined(true)
   }
 
   return (
@@ -70,7 +73,7 @@ export default function Lobby() {
           </div>
           <div className={styles.actions}>
             <button className={styles.button} onClick={() => setReady(!state.self?.ready)}>Ready Up</button>
-            <button className={styles.button} onClick={() => startGame()} disabled={!state.self?.isLeader}>Start Game (Leader)</button>
+            <button className={styles.button} onClick={() => startGame('medium')} disabled={!state.self?.isLeader}>Start Game (Leader)</button>
           </div>
         </div>
       )}
