@@ -86,7 +86,7 @@ export function useLobby() {
               } else if (msg.kind === 'pos' && msg.playerId && typeof msg.x === 'number' && typeof msg.y === 'number') {
                 setState(s => {
                   const exists = s.players.some(p => p.id === msg.playerId)
-                  const players = exists ? s.players : [...s.players, { id: msg.playerId, name: 'Player', color: '#10b981', ready: false, isLeader: false, alive: true, status: 'Not Ready' }]
+                  const players = exists ? s.players : [...s.players, { id: String(msg.playerId), name: 'Player', color: '#10b981', ready: false, isLeader: false, alive: true, status: 'Not Ready' as const }]
                   return {
                     ...s,
                     players,
@@ -113,13 +113,13 @@ export function useLobby() {
               } else if (msg.kind === 'ready' && msg.playerId) {
                 setState(s => ({
                   ...s,
-                  players: s.players.map(p => p.id === msg.playerId ? { ...p, ready: !!msg.ready } : p)
+                  players: s.players.map(p => p.id === msg.playerId ? { ...p, ready: !!msg.ready, status: (!!msg.ready) ? 'Ready' as const : 'Not Ready' as const } : p)
                 }))
               } else if (msg.kind === 'dead' && msg.playerId) {
                 setState(s => {
                   const next = {
                     ...s,
-                    players: s.players.map(p => p.id === msg.playerId ? { ...p, alive: false, status: 'Deceased' } : p),
+                    players: s.players.map(p => p.id === msg.playerId ? { ...p, alive: false, status: 'Deceased' as const } : p),
                     distances: msg.distance != null ? { ...s.distances, [msg.playerId]: msg.distance } : s.distances
                   }
                   // If all players are now dead and we are leader, announce round over with results
@@ -139,8 +139,8 @@ export function useLobby() {
                 setState(s => ({
                   ...s,
                   started: false,
-                  players: (s.players || []).map(p => ({ ...p, ready: false, alive: true, status: 'Not Ready' })),
-                  self: s.self ? { ...s.self, ready: false, alive: true, status: 'Not Ready' } : s.self,
+                  players: (s.players || []).map(p => ({ ...p, ready: false, alive: true, status: 'Not Ready' as const })),
+                  self: s.self ? { ...s.self, ready: false, alive: true, status: 'Not Ready' as const } : s.self,
                   roundResults: msg.results || Object.entries(s.distances || {}).map(([pid, dist]) => {
                     const pl = (s.players || []).find(pp => pp.id === pid)
                     return { playerId: pid, name: pl?.name || 'Player', distance: dist as number }
@@ -155,7 +155,7 @@ export function useLobby() {
           setConnection('error');
           setState(s => ({ ...s, connError: `socket close ${ev.code}` }))
         }
-        wsRef.current.onerror = (ev: Event) => {
+        wsRef.current.onerror = () => {
           try { if (pingTimerRef.current) clearInterval(pingTimerRef.current) } catch {}
           setConnection('error');
           setState(s => ({ ...s, connError: 'socket error' }))
@@ -166,21 +166,16 @@ export function useLobby() {
   }
 
   const setReady = (ready: boolean) => {
-    let nextState: LobbyState | null = null
-    setState(s => {
-      const players = s.players.map(p => p.id === s.self?.id ? { ...p, ready, status: ready ? 'Ready' : 'Not Ready' } : p)
-      const self = s.self ? { ...s.self, ready, status: ready ? 'Ready' : 'Not Ready' } : undefined
-      nextState = { ...s, players, self }
-      return nextState
-    })
-    // Use the freshly computed state to avoid stale closures
-    const curr = nextState || state
+    const players = state.players.map(p => p.id === state.self?.id ? { ...p, ready, status: ready ? 'Ready' as const : 'Not Ready' as const } : p)
+    const self = state.self ? { ...state.self, ready, status: ready ? 'Ready' as const : 'Not Ready' as const } : undefined
+    const curr: LobbyState = { ...state, players, self }
+    setState(curr)
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && curr.lobbyCode && curr.self) {
       const payload = { kind: 'ready', lobbyCode: curr.lobbyCode, playerId: curr.self.id, ready }
       const frame = { type: 'sendToGroup', group: curr.lobbyCode, data: payload, dataType: 'json' }
       try { wsRef.current.send(JSON.stringify(frame)) } catch {}
       if (curr.self.isLeader) {
-        const playersPayload = { kind: 'players', lobbyCode: curr.lobbyCode, players: curr.players.map(p => ({ ...p, status: p.ready ? 'Ready' : (p.alive ? 'Not Ready' : 'Deceased') })) }
+        const playersPayload = { kind: 'players', lobbyCode: curr.lobbyCode, players: curr.players.map(p => ({ ...p, status: p.ready ? 'Ready' as const : (p.alive ? 'Not Ready' as const : 'Deceased' as const) })) }
         const playersFrame = { type: 'sendToGroup', group: curr.lobbyCode, data: playersPayload, dataType: 'json' }
         try { wsRef.current.send(JSON.stringify(playersFrame)) } catch {}
       }
