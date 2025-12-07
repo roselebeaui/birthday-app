@@ -1,0 +1,6 @@
+.section { padding: 16px; }
+.title { font-weight: 700; font-size: 1.6rem; margin-bottom: 12px; text-align: center; }
+.grid { column-count: 4; column-gap: 2px; }
+.item { break-inside: avoid; margin-bottom: 2px; }
+.image { width: 100%; height: auto; display: block; }
+.empty { opacity: 0.8; text-align: center; padding: 24px; }

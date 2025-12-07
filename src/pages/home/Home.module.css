@@ -9,6 +9,7 @@
   place-items: center;
   background: var(--home-bg);
   color: var(--home-text);
+  overflow: hidden; /* allow decorative edges to peek in */
 }
 
 .logo {
@@ -23,6 +24,49 @@
   height: 100%;
   display: grid;
   place-items: center;
+}
+
+/* Subtle aurora-style gradient bands on left/right to fill space */
+.section::before,
+.section::after {
+  content: '';
+  position: fixed;
+  top: 10vh;
+  bottom: 10vh;
+  width: 22vw;
+  max-width: 380px;
+  filter: blur(24px) saturate(120%);
+  opacity: 0.18;
+  z-index: 0; /* behind everything */
+  pointer-events: none;
+}
+
+.section::before {
+  left: -6vw;
+  background: conic-gradient(from 180deg at 50% 50%, #7c4dff 0%, #00e5ff 25%, #ff4081 50%, #7c4dff 75%, #00e5ff 100%);
+  animation: auroraLeft 14s ease-in-out infinite;
+}
+
+.section::after {
+  right: -6vw;
+  background: conic-gradient(from 0deg at 50% 50%, #00e5ff 0%, #ffea00 25%, #7c4dff 50%, #ff4081 75%, #00e5ff 100%);
+  animation: auroraRight 16s ease-in-out infinite;
+}
+
+@keyframes auroraLeft {
+  0%   { transform: translateY(0) scale(1.0) rotate(0deg); opacity: 0.16; }
+  25%  { transform: translateY(-2vh) scale(1.05) rotate(3deg); opacity: 0.20; }
+  50%  { transform: translateY(1vh) scale(1.02) rotate(-2deg); opacity: 0.18; }
+  75%  { transform: translateY(-1vh) scale(1.06) rotate(2deg); opacity: 0.22; }
+  100% { transform: translateY(0) scale(1.0) rotate(0deg); opacity: 0.16; }
+}
+
+@keyframes auroraRight {
+  0%   { transform: translateY(0) scale(1.0) rotate(0deg); opacity: 0.18; }
+  25%  { transform: translateY(2vh) scale(1.06) rotate(-2deg); opacity: 0.22; }
+  50%  { transform: translateY(-1vh) scale(1.03) rotate(2deg); opacity: 0.20; }
+  75%  { transform: translateY(1vh) scale(1.05) rotate(-3deg); opacity: 0.19; }
+  100% { transform: translateY(0) scale(1.0) rotate(0deg); opacity: 0.18; }
 }
 
 /* Background flyer: moves around the screen behind all content */
@@ -55,6 +99,73 @@
 /* Ensure other components sit above flyer */
 .cards { z-index: 1; }
 .logo { z-index: 2; position: relative; }
+/* lift the main content above decorative edges */
+.content, .cards, .logo { position: relative; z-index: 1; }
+
+/* Message board columns */
+.leftBoard,
+.rightBoard {
+  position: fixed;
+  top: 80px; /* below sticky navbar */
+  bottom: 24px;
+  width: 320px;
+  padding: 12px;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  z-index: 2; /* above aurora, below scare overlay */
+}
+
+.leftBoard { left: 16px; }
+.rightBoard { right: 16px; }
+
+.boardTitle {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.messages {
+  overflow: auto;
+  height: calc(100% - 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.messageItem {
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+}
+
+.input {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.12);
+}
+
+.submitBtn {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: #7c4dff;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 1200px) {
+  .leftBoard, .rightBoard { display: none; }
+}
 
 /* Curvier, less predictable path using many control points */
 @keyframes flyCurvy {

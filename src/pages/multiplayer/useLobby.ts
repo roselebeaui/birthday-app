@@ -80,9 +80,23 @@ export function useLobby() {
               if (msg.kind === 'state') {
                 setState(s => ({ ...s, ...msg.state }))
               } else if (msg.kind === 'players') {
-                setState(s => ({ ...s, players: msg.players }))
+                setState(s => {
+                  const players: Player[] = (msg.players || []).map((p: any) => ({
+                    id: String(p.id),
+                    name: String(p.name || 'Player'),
+                    color: String(p.color || '#10b981'),
+                    ready: !!p.ready,
+                    isLeader: !!p.isLeader,
+                    alive: p.alive !== false,
+                    status: p.status === 'Ready' ? 'Ready' : (p.status === 'Deceased' ? 'Deceased' : 'Not Ready')
+                  }))
+                  const self = s.self ? players.find(p => p.id === s.self!.id) || s.self : s.self
+                  return { ...s, players, self }
+                })
               } else if (msg.kind === 'started') {
                 setState(s => ({ ...s, started: !!msg.started, difficulty: msg.difficulty }))
+              } else if (msg.kind === 'difficulty') {
+                setState(s => ({ ...s, difficulty: msg.difficulty }))
               } else if (msg.kind === 'pos' && msg.playerId && typeof msg.x === 'number' && typeof msg.y === 'number') {
                 setState(s => {
                   const exists = s.players.some(p => p.id === msg.playerId)
@@ -111,10 +125,11 @@ export function useLobby() {
                   return next
                 })
               } else if (msg.kind === 'ready' && msg.playerId) {
-                setState(s => ({
-                  ...s,
-                  players: s.players.map(p => p.id === msg.playerId ? { ...p, ready: !!msg.ready, status: (!!msg.ready) ? 'Ready' as const : 'Not Ready' as const } : p)
-                }))
+                setState(s => {
+                  const players = s.players.map(p => p.id === msg.playerId ? { ...p, ready: !!msg.ready, status: (!!msg.ready) ? 'Ready' as const : 'Not Ready' as const } : p)
+                  const self = s.self && s.self.id === msg.playerId ? { ...s.self, ready: !!msg.ready, status: (!!msg.ready) ? 'Ready' as const : 'Not Ready' as const } : s.self
+                  return { ...s, players, self }
+                })
               } else if (msg.kind === 'dead' && msg.playerId) {
                 setState(s => {
                   const next = {
@@ -182,6 +197,15 @@ export function useLobby() {
     }
   }
 
+  const setLobbyDifficulty = (difficulty: 'easy'|'medium'|'hard') => {
+    setState(s => ({ ...s, difficulty }))
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && state.lobbyCode) {
+      const payload = { kind: 'difficulty', lobbyCode: state.lobbyCode, difficulty }
+      const frame = { type: 'sendToGroup', group: state.lobbyCode, data: payload, dataType: 'json' }
+      try { wsRef.current.send(JSON.stringify(frame)) } catch {}
+    }
+  }
+
   const startGame = (difficulty: 'easy'|'medium'|'hard') => {
     // Only allow leader to start when all players are ready
     const allReady = state.players.length > 0 && state.players.every(p => p.ready)
@@ -218,7 +242,7 @@ export function useLobby() {
     }
   }, [])
 
-  return { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby, updatePosition, announceDeath }
+  return { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby, updatePosition, announceDeath, setLobbyDifficulty }
 
   // Emit local player position to the lobby group
   function updatePosition(x: number, y: number) {

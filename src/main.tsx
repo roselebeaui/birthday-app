@@ -6,6 +6,7 @@ import Layout from './navigation/Layout'
 import Home from './pages/home/Home'
 import RankingGrossFood from './pages/food_ranking/RankingGrossFood'
 import BlockRunner from './pages/block_runner/BlockRunner'
+import LoversGallery from './pages/gallery/LoversGallery'
 
 const router = createBrowserRouter([
   {
@@ -15,6 +16,8 @@ const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: '/games/food-ranking', element: <RankingGrossFood /> },
       { path: '/games/block-runner', element: <BlockRunner /> },
+      { path: '/gallery/lovers', element: <LoversGallery /> },
+      
     ],
   },
 ])

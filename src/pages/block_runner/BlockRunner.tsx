@@ -14,19 +14,37 @@ export default function BlockRunner() {
   const deathTimerRef = useRef(0)
   const particlesRef = useRef<Array<{ x: number; y: number; vx: number; vy: number; life: number; size: number }>>([])
   // Shared lobby hook at top-level so game loop can emit positions
-  const { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby, updatePosition, announceDeath } = useLobby()
+  const { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby, updatePosition, announceDeath, setLobbyDifficulty } = useLobby()
   const stateRef = useRef<any>(state)
   useEffect(() => { stateRef.current = state }, [state])
   // Smoothed positions for remote players
   const interpRef = useRef<Record<string, { x: number; y: number }>>({})
   const [spectateId, setSpectateId] = useState<string | null>(null)
+  const resetMotionRef = useRef(false)
+  const startFreezeRef = useRef(0)
+  const reverseMulRef = useRef(1)
+  const coyoteTimerRef = useRef(0)
+  const jumpBufferRef = useRef(0)
+  const wantJumpRef = useRef(false)
 
   // Clear spectate when round resets or you revive
   useEffect(() => {
     if (!state.started || state.self?.alive) {
       setSpectateId(null)
+      // revive local controls after round resets or when you revive
+      isDeadRef.current = false
     }
   }, [state.started, state.self?.alive])
+
+  // When a new round starts, clear any residual inputs and motion
+  useEffect(() => {
+    if (state.started) {
+      resetMotionRef.current = true
+      startFreezeRef.current = 30
+      setSpectateId(null)
+      isDeadRef.current = false
+    }
+  }, [state.started])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -55,12 +73,26 @@ export default function BlockRunner() {
     const W = canvas.width = 1200
     const H = canvas.height = 600
 
-    // player position in world coords
-    let playerWorldX = 50
+    // spawn location helpers
+    const computeSpawnX = (idx = 0) => 40 + idx * 24
+
     // Floor setup
     const groundHeight = 60
     const groundTop = H - groundHeight
-    let playerY = groundTop
+    const computeSpawnY = () => {
+      // Use a fixed starter height; no per-player vertical offset
+        const starterHeight = 6
+        return groundTop - starterHeight
+    }
+    // player position in world coords
+    const selfIdx = (() => {
+      const arr = (stateRef.current?.players || []) as any[]
+      const sid = stateRef.current?.self?.id
+      const i = arr.findIndex(p => p.id === sid)
+      return i >= 0 ? i : 0
+    })()
+    let playerWorldX = computeSpawnX(selfIdx)
+    let playerY = computeSpawnY()
     const ceilingHeight = 40
     const ceilingBottom = ceilingHeight
     let vx = 0
@@ -78,6 +110,7 @@ export default function BlockRunner() {
     // Procedural course generation using features library (extends as you progress)
     let features: Feature[] = []
     let lastFeatureX = 300
+    // starter visual is render-only now; flag no longer needed
     // Ensure the first gravity well appears between 750m and 1200m (world X 7500-12000)
     let firstWellPlaced = false
     // Optional lava segments: intervals where ground is deadly
@@ -165,6 +198,8 @@ export default function BlockRunner() {
         }
       }
     }
+    
+
     // initial chunk (scaled by difficulty) — skip in playground
     if (isActiveRound) {
       generateChunk(difficulty === 'easy' ? 24 : difficulty === 'hard' ? 44 : 36)
@@ -195,10 +230,22 @@ export default function BlockRunner() {
         .map(f => ({ x: f.x, w: f.width ?? 32, h: f.height ?? 32, safe: f.safe ?? (f.kind !== 'block' ? true : false), spikes: (f as any).spikes }))
       : []
 
+    // Add starting pedestals per player to avoid overlap/slide at spawn
+      if (isActiveRound) {
+    }
+
     let canJump = false
     const jump = () => {
       if (isDeadRef.current) return
-      if (canJump) vy = -11
+      // jump buffering: allow a short window to consume jump input
+      wantJumpRef.current = true
+      jumpBufferRef.current = 0.12
+      // immediate jump if allowed at press time
+      if (canJump || coyoteTimerRef.current > 0) {
+        vy = reverseMulRef.current === -1 ? 11 : -11
+        wantJumpRef.current = false
+        jumpBufferRef.current = 0
+      }
     }
 
     const held = { left: false, right: false }
@@ -255,12 +302,21 @@ export default function BlockRunner() {
     const loop = () => {
       ctx.clearRect(0, 0, W, H)
       const isPlayground = !stateRef.current?.started && mode !== 'single'
+      // apply motion reset at the first tick after start
+      if (resetMotionRef.current) {
+        resetMotionRef.current = false
+        vx = 0
+        vy = 0
+        playerWorldX = computeSpawnX()
+        playerY = computeSpawnY()
+        held.left = false
+        held.right = false
+      }
       // update camera: in playground, keep camera at 0; in game, follow
       if (isPlayground) {
         cameraX = 0
         // hard reset any generated content/hazards while in playground
         try {
-          // clear feature lists and runtime states
           features.length = 0
           lavaSegments.length = 0
           obstacles.length = 0
@@ -355,6 +411,54 @@ export default function BlockRunner() {
               vy = Math.min(vy, 0) // prevent upward stickiness
             }
           }
+        }
+      } else {
+        // game-mode movement and starter column collision
+        const START_COL_X = 100
+        const START_COL_W = 8
+        const START_COL_H = 80
+        const START_COL_TOP = groundTop - START_COL_H
+
+        if (!isDeadRef.current) {
+          if (held.left) vx = Math.max(vx - accel, -maxSpeed)
+          if (held.right) vx = Math.min(vx + accel, maxSpeed)
+          if (!held.left && !held.right) vx *= friction
+          // In game mode, do not clamp to screen width; allow world progression
+          const nextX = Math.max(0, playerWorldX + vx)
+          // block passage through starter column unless player's top is above column top (i.e., jumped over)
+          const playerTop = playerY - 20
+          const playerBottom = playerY
+          const overlapsHoriz = (nextX + 20) > START_COL_X && nextX < (START_COL_X + START_COL_W)
+          // Constrain while the player is below the column top (hasn't jumped over)
+          const overlapsVert = playerTop < groundTop && playerBottom > START_COL_TOP
+          if (overlapsHoriz && overlapsVert) {
+            if (vx > 0) {
+              // moving right: clamp to left of column
+              playerWorldX = Math.min(playerWorldX, START_COL_X - 20)
+            } else if (vx < 0) {
+              // moving left: clamp to right of column
+              playerWorldX = Math.max(playerWorldX, START_COL_X + START_COL_W)
+            }
+            vx = 0
+          } else {
+            playerWorldX = nextX
+          }
+          // defer vertical physics and collisions to unified section below
+        } else {
+          vx *= 0.92
+          // In game mode while dead, avoid clamping to canvas width; keep world coordinates
+          playerWorldX = Math.max(0, playerWorldX + vx)
+          playerY = groundTop
+        }
+
+        // draw starter column in game mode only
+        {
+          const baseX = 100
+          const colW = 8
+          const colH = 80
+          const colTopY = groundTop - colH
+          ctx.fillStyle = '#f5f5dc' // cream/white
+          ctx.fillRect(baseX - cameraX, colTopY, colW, colH)
         }
       }
 
@@ -764,6 +868,7 @@ export default function BlockRunner() {
       // apply gravity scale when inside a gravity well (skip during playground)
       const gScale = isPlayground ? 1 : (inWell ? (inWell.gravityScale ?? 0.4) : 1)
       const reverseMul = inReverse ? -1 : 1
+      reverseMulRef.current = reverseMul
       vy += (isDeadRef.current ? gravity * 0.4 : gravity) * gScale * reverseMul
       playerY = playerY + vy
       // ceiling collision
@@ -840,17 +945,20 @@ export default function BlockRunner() {
           ctx.fillStyle = '#fff'
           ctx.font = '12px system-ui'
           ctx.fillText(p.name, rx, ry - radius - 4)
-          // bump collision vs local
+          // bump collision vs local (reduce stickiness, disable near starter column)
           const dx = (sx + 10) - (playerWorldX + 10)
           const dy = (sy - 10) - (playerY - 10)
           const dist = Math.hypot(dx, dy)
           const minDist = radius * 2
-          if (dist > 0 && dist < minDist) {
+          const nearStarter = Math.abs(playerWorldX - 100) < 40
+          const bothGrounded = Math.abs(sy - groundTop) < 0.5 && Math.abs(playerY - groundTop) < 0.5
+          if (!nearStarter && bothGrounded && dist > 0 && dist < minDist) {
             const overlap = minDist - dist
             const nx = dx / dist
-            const ny = dy / dist
-            playerWorldX -= nx * (overlap / 2)
-            playerY -= ny * (overlap / 2)
+            // resolve primarily horizontally to avoid dragging
+            playerWorldX -= nx * Math.min(overlap, 4)
+            // light damping of local velocity to prevent endless slide
+            vx *= 0.6
           }
         }
       } else if (!isPlayground) {
@@ -1017,8 +1125,27 @@ export default function BlockRunner() {
         vy = 0
       }
 
-      // update jump availability: on ground or safely landed on a platform (playground: ground only)
-      canJump = isPlayground ? (playerY === groundTop) : (landedOnSafe || playerY === groundTop)
+      // update jump availability: on ground or safely landed on a platform
+      // In reverse gravity, treat ceiling as ground for jump checks
+      const onCeilingGround = (playerY - 20) <= ceilingBottom + 0.0001
+      canJump = isPlayground
+        ? (playerY === groundTop)
+        : (landedOnSafe || (reverseMul === 1 ? playerY === groundTop : onCeilingGround))
+
+      // coyote time: small window to jump after leaving ground/platform
+      const dt = 1 / 60
+      if (canJump) {
+        coyoteTimerRef.current = 0.12
+      } else {
+        coyoteTimerRef.current = Math.max(0, coyoteTimerRef.current - dt)
+      }
+      // jump buffer countdown
+      jumpBufferRef.current = Math.max(0, jumpBufferRef.current - dt)
+      if (wantJumpRef.current && jumpBufferRef.current > 0 && (canJump || coyoteTimerRef.current > 0)) {
+        vy = reverseMulRef.current === -1 ? 11 : -11
+        wantJumpRef.current = false
+        jumpBufferRef.current = 0
+      }
 
       // after death animation completes, keep running and allow spectating via UI
       if (isDeadRef.current && deathTimerRef.current > 1.6 && particlesRef.current.length === 0) {
@@ -1141,7 +1268,7 @@ export default function BlockRunner() {
           setMode={setMode}
           setDifficulty={setDifficulty}
           setRunning={setRunning}
-          lobby={{ state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby }}
+          lobby={{ state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby, setLobbyDifficulty }}
           spectateId={spectateId}
           setSpectateId={setSpectateId}
           />
@@ -1166,13 +1293,14 @@ export default function BlockRunner() {
       createLobbyCode: any;
       connection: any;
       leaveLobby: any;
+      setLobbyDifficulty: any;
     };
     spectateId: string | null;
     setSpectateId: (id: string | null) => void;
   };
 
   function LobbySidebar({ mode, setMode, setDifficulty, setRunning, lobby, spectateId, setSpectateId }: LobbySidebarProps) {
-  const { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby } = lobby
+  const { state, joinLobby, setReady, startGame, createLobbyCode, connection, leaveLobby, setLobbyDifficulty } = lobby
   const [name, setName] = useState('')
   const [color, setColor] = useState('#4f46e5')
   const [lobbyCode, setLobbyCode] = useState('')
@@ -1225,6 +1353,13 @@ export default function BlockRunner() {
     timer = setInterval(fetchLobbies, 10000)
     return () => clearInterval(timer)
   }, [])
+
+  // Sync local selectedDifficulty to lobby state so non-leaders see updates
+  useEffect(() => {
+    if (state.difficulty) {
+      setSelectedDifficulty(state.difficulty)
+    }
+  }, [state.difficulty])
 
   const colors = ['#ef4444','#22c55e','#3b82f6','#a855f7','#f59e0b','#ec4899']
 
@@ -1358,13 +1493,15 @@ export default function BlockRunner() {
               Leave Lobby
             </button>
           </div>
-          <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>Difficulty:</div>
+          <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>
+            Difficulty{state.difficulty ? `: ${state.difficulty[0].toUpperCase()}${state.difficulty.slice(1)}` : ''}
+          </div>
           <div className={styles.buttonRow}>
             {(['easy','medium','hard'] as const).map(d => (
               <button
                 key={d}
-                className={`${styles.button} ${selectedDifficulty===d ? styles['button--selected'] : ''}`}
-                onClick={() => setSelectedDifficulty(d)}
+                className={`${styles.button} ${(state.difficulty ?? selectedDifficulty)===d ? styles['button--selected'] : ''}`}
+                onClick={() => { setSelectedDifficulty(d); if (state.self?.isLeader) setLobbyDifficulty(d) }}
                 disabled={!state.self?.isLeader}
               >
                 {d[0].toUpperCase() + d.slice(1)}

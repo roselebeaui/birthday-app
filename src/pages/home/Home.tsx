@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 const placeholders = [
   'Ranking Gross Food',
   'Block Runner',
-  'Trivia Challenge',
+  'The Cave of Two Lovers',
   'Photo Puzzle',
   'Word Scramble',
   'Guess The Year',
@@ -15,6 +15,16 @@ const placeholders = [
 export default function Home() {
   const navigate = useNavigate()
   const [showScare, setShowScare] = useState(false)
+  const [messages, setMessages] = useState<{id:number;text:string}[]>([])
+  const [draft, setDraft] = useState('')
+  const [error, setError] = useState<string>('')
+  const API_BASE = (() => {
+    const envBase = (import.meta as any).env?.VITE_API_BASE
+    if (envBase) return envBase
+    const isDev = typeof window !== 'undefined' && location.hostname === 'localhost'
+    // In Vite dev, default to local Functions host if running
+    return isDev ? 'http://localhost:7071/api' : '/api'
+  })()
   // Load scare face image(s) from assets/scary_photos; pick the first image file
   const scareImage = useMemo(() => {
     const pngs = import.meta.glob('../../assets/scary_photos/*.png', { eager: true, import: 'default' }) as Record<string, string>
@@ -55,6 +65,40 @@ export default function Home() {
     // Show fullscreen scare image for ~2 seconds
     setShowScare(true)
     setTimeout(() => setShowScare(false), 2000)
+  }
+
+  useEffect(() => {
+    // Load from server API
+    fetch(`${API_BASE}/messages`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`GET ${API_BASE}/messages failed: ${r.status}`)
+        return r.json()
+      })
+      .then((data) => {
+        if (data && Array.isArray(data.messages)) setMessages(data.messages)
+      })
+      .catch((e) => { setError('Failed to load messages.'); console.error('Load messages error', e) })
+  }, [])
+
+  const submitMessage = (e: React.FormEvent) => {
+    e.preventDefault()
+    const text = draft.trim()
+    if (!text) return
+    setError('')
+    fetch(`${API_BASE}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`POST ${API_BASE}/messages failed: ${r.status}`)
+        return r.json()
+      })
+      .then((item) => {
+        setMessages((prev) => [item, ...prev].slice(0, 200))
+        setDraft('')
+      })
+      .catch((e) => { setError('Submit failed. Check API deployment.'); console.error('Submit message error', e) })
   }
 
   const openFoodRanking = (e: React.MouseEvent) => {
@@ -110,6 +154,35 @@ export default function Home() {
   return (
     <section className={styles.section}>
       <div className={styles.content}>
+        {/* Left: Message board list */}
+        <aside className={styles.leftBoard} aria-label="Message board">
+          <div className={styles.boardTitle}>Messages</div>
+          <div className={styles.messages}>
+            {messages.length === 0 ? (
+              <div className={styles.messageItem}>No messages yet. Be the first!</div>
+            ) : (
+              messages.map((m) => (
+                <div key={m.id} className={styles.messageItem}>{m.text}</div>
+              ))
+            )}
+          </div>
+        </aside>
+
+        {/* Right: Composer */}
+        <aside className={styles.rightBoard} aria-label="Compose message">
+          <div className={styles.boardTitle}>Write a note</div>
+          <form className={styles.composer} onSubmit={submitMessage}>
+            <input
+              className={styles.input}
+              type="text"
+              placeholder="Type your message..."
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+            />
+            <button className={styles.submitBtn} type="submit">Submit</button>
+          </form>
+          {error && (<div style={{ marginTop: 8, color: '#b00020', fontWeight: 600 }}>{error}</div>)}
+        </aside>
         {showScare && (
           <div className={styles.scareOverlay}>
             <img src={scareImage} alt="Scare Face" className={styles.scareImage} />
@@ -143,6 +216,17 @@ export default function Home() {
                     tabIndex={0}
                     onClick={() => navigate('/games/block-runner')}
                     onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') navigate('/games/block-runner') }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {label}
+                  </div>
+                ) : label === 'The Cave of Two Lovers' ? (
+                  <div
+                    className={styles.cardInner}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate('/gallery/lovers')}
+                    onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') navigate('/gallery/lovers') }}
                     style={{ cursor: 'pointer' }}
                   >
                     {label}
