@@ -110,21 +110,31 @@
   bottom: 24px;
   width: 320px;
   padding: 12px;
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(0,0,0,0.08);
+  background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.08));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255,255,255,0.35);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.35);
   z-index: 2; /* above aurora, below scare overlay */
 }
 
-.leftBoard { left: 16px; }
-.rightBoard { right: 16px; }
+.leftBoard { left: 16px; border: none; }
+.rightBoard {
+  right: 16px;
+  /* Compact composer: do not take full height */
+  bottom: auto;
+  height: auto;
+  max-height: 60vh;
+}
 
 .boardTitle {
   font-weight: 700;
   margin-bottom: 8px;
 }
+
+/* Make Birthday Wishes heading white without affecting right panel */
+.leftBoard .boardTitle { color: #fff; }
 
 .messages {
   overflow: auto;
@@ -136,14 +146,24 @@
 
 .messageItem {
   background: rgba(255,255,255,0.9);
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid rgba(255,255,255,0.5);
   border-radius: 10px;
   padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .composer {
   display: flex;
+  flex-direction: column;
   gap: 8px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .input {
@@ -151,6 +171,10 @@
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid rgba(0,0,0,0.12);
+  resize: none; /* for textarea autosize */
+  overflow: hidden; /* hide scrollbar during autosize */
+  line-height: 1.25;
+  min-height: 72px; /* start a bit taller by default */
 }
 
 .submitBtn {
@@ -161,6 +185,54 @@
   color: #fff;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* Emoji picker UI */
+.emojiBtn {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.95);
+  cursor: pointer;
+}
+
+.emojiPopover {
+  position: absolute;
+  left: 12px;
+  top: auto;
+  bottom: 12px; /* keep it visible near the bottom of the card */
+  width: 240px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px;
+  background: rgba(255,255,255,0.98);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 3;
+}
+
+.emojiGrid {
+  display: grid;
+  grid-template-columns: repeat(8, 28px);
+  gap: 6px;
+}
+
+.emojiItem {
+  height: 28px;
+  width: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.emojiItem:hover {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.06);
 }
 
 @media (max-width: 1200px) {

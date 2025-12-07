@@ -5,7 +5,7 @@ export default function Navbar() {
 	return (
 		<header className={styles.header}>
 			<nav className={styles.nav}>
-				<div className={styles.brand}>Devan Bait</div>
+				<div className={styles.brand}>Hubert's World</div>
 				<ul className={styles.links}>
 					<li><Link to="/">Home</Link></li>
 				</ul>

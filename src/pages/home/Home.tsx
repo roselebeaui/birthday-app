@@ -1,7 +1,7 @@
 import logo from '../../assets/logos/Devan_Birthday.png'
 import styles from './Home.module.css'
 import { useNavigate } from 'react-router-dom'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 const placeholders = [
   'Ranking Gross Food',
@@ -18,11 +18,16 @@ export default function Home() {
   const [messages, setMessages] = useState<{id:number;text:string}[]>([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string>('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const draftRef = useRef<HTMLTextAreaElement | null>(null)
   const API_BASE = (() => {
-    const envBase = (import.meta as any).env?.VITE_API_BASE
-    if (envBase) return envBase
+    const env: any = (import.meta as any).env || {}
+    // Preferred explicit API base
+    if (env.VITE_API_BASE) return env.VITE_API_BASE
+    // Fallback to existing functions base used by Block Runner
+    if (env.VITE_FUNC_BASE) return `${env.VITE_FUNC_BASE}/api`
+    // Dev convenience
     const isDev = typeof window !== 'undefined' && location.hostname === 'localhost'
-    // In Vite dev, default to local Functions host if running
     return isDev ? 'http://localhost:7071/api' : '/api'
   })()
   // Load scare face image(s) from assets/scary_photos; pick the first image file
@@ -80,6 +85,19 @@ export default function Home() {
       .catch((e) => { setError('Failed to load messages.'); console.error('Load messages error', e) })
   }, [])
 
+  const EMOJIS = useMemo(() => [
+    '🎉','🎂','🥳','🎈','💖','✨','👏','😊','😍','🙏','🔥','👍','💯','🫶','😎','🤩','😄','😇','🤗','🤍','💙','💜','💛','💗'
+  ], [])
+
+  const autoGrow = () => {
+    const el = draftRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, window.innerHeight * 0.5) + 'px'
+  }
+
+  useEffect(() => { autoGrow() }, [])
+
   const submitMessage = (e: React.FormEvent) => {
     e.preventDefault()
     const text = draft.trim()
@@ -97,6 +115,7 @@ export default function Home() {
       .then((item) => {
         setMessages((prev) => [item, ...prev].slice(0, 200))
         setDraft('')
+        setPickerOpen(false)
       })
       .catch((e) => { setError('Submit failed. Check API deployment.'); console.error('Submit message error', e) })
   }
@@ -155,8 +174,8 @@ export default function Home() {
     <section className={styles.section}>
       <div className={styles.content}>
         {/* Left: Message board list */}
-        <aside className={styles.leftBoard} aria-label="Message board">
-          <div className={styles.boardTitle}>Messages</div>
+        <aside className={styles.leftBoard} aria-label="Birthday wishes">
+          <div className={styles.boardTitle}>Birthday Wishes</div>
           <div className={styles.messages}>
             {messages.length === 0 ? (
               <div className={styles.messageItem}>No messages yet. Be the first!</div>
@@ -172,15 +191,41 @@ export default function Home() {
         <aside className={styles.rightBoard} aria-label="Compose message">
           <div className={styles.boardTitle}>Write a note</div>
           <form className={styles.composer} onSubmit={submitMessage}>
-            <input
+            <textarea
+              ref={draftRef}
               className={styles.input}
-              type="text"
               placeholder="Type your message..."
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              rows={1}
+              onChange={(e) => { setDraft(e.target.value); autoGrow() }}
+              onInput={autoGrow}
             />
-            <button className={styles.submitBtn} type="submit">Submit</button>
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className={styles.emojiBtn}
+                aria-label="Insert emoji"
+                title="Insert emoji"
+                onClick={() => setPickerOpen((v) => !v)}
+              >😊</button>
+              <button className={styles.submitBtn} type="submit">Submit</button>
+            </div>
           </form>
+          {pickerOpen && (
+            <div className={styles.emojiPopover} role="dialog" aria-label="Emoji picker">
+              <div className={styles.emojiGrid}>
+                {EMOJIS.map((emo) => (
+                  <button
+                    key={emo}
+                    type="button"
+                    className={styles.emojiItem}
+                    onClick={() => { setDraft((d) => d + emo); setPickerOpen(false) }}
+                    aria-label={`Insert ${emo}`}
+                  >{emo}</button>
+                ))}
+              </div>
+            </div>
+          )}
           {error && (<div style={{ marginTop: 8, color: '#b00020', fontWeight: 600 }}>{error}</div>)}
         </aside>
         {showScare && (
