@@ -24,7 +24,6 @@ export default function DontOverthinkIt() {
   const [done, setDone] = useState(false)
   const [failed, setFailed] = useState(false)
   const [wrongCount, setWrongCount] = useState(0)
-  const [showWrongX, setShowWrongX] = useState(false)
   const current = useMemo(() => QUESTIONS[idx], [idx])
 
   const choose = (i: number) => {
@@ -33,7 +32,7 @@ export default function DontOverthinkIt() {
     const correct = i === current.correctIndex
     if (correct) {
       setScore((s) => s + 1)
-      setShowWrongX(false)
+      
       setTimeout(() => {
         const next = idx + 1
         if (next >= QUESTIONS.length) {
@@ -44,7 +43,7 @@ export default function DontOverthinkIt() {
         }
       }, 600)
     } else {
-      setShowWrongX(true)
+      
       setWrongCount((c) => {
         const nc = c + 1
         if (nc >= 2) {
@@ -61,7 +60,7 @@ export default function DontOverthinkIt() {
   }
 
   const restart = () => {
-    setIdx(0); setSelected(null); setScore(0); setDone(false); setFailed(false); setWrongCount(0); setShowWrongX(false)
+    setIdx(0); setSelected(null); setScore(0); setDone(false); setFailed(false); setWrongCount(0)
   }
 
   return (

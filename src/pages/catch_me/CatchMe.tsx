@@ -21,8 +21,11 @@ export default function CatchMe() {
     const onEnded = () => { setVisible(false) }
     a.addEventListener('ended', onEnded)
     // Safety timeout in case 'ended' doesn't fire
-    const safety = window.setTimeout(() => setVisible(false), 7000)
-    return () => window.removeEventListener('click', handler)
+    window.setTimeout(() => setVisible(false), 7000)
+    return () => {
+      window.removeEventListener('click', handler)
+      a.removeEventListener('ended', onEnded)
+    }
   }, [])
 
   return (

@@ -64,13 +64,13 @@ export default function AreYouChill() {
   const [done, setDone] = useState(false)
   const [failed, setFailed] = useState(false)
   const [wrongCount, setWrongCount] = useState(0)
-  const [showWrongX, setShowWrongX] = useState(false)
+  
   const [delayReady, setDelayReady] = useState(false)
   const current = useMemo(() => QUESTIONS[idx], [idx])
 
   useEffect(() => {
     setSelected(null)
-    setShowWrongX(false)
+    
     setDelayReady(false)
     if (current.special === 'delay-like') {
       const t = setTimeout(() => setDelayReady(true), 3000)
@@ -85,7 +85,7 @@ export default function AreYouChill() {
     } else {
       setIdx(next)
       setSelected(null)
-      setShowWrongX(false)
+      
     }
   }
 
@@ -103,7 +103,7 @@ export default function AreYouChill() {
         return
       } else {
         // treat as wrong if not delayReady or any other option
-        setShowWrongX(true)
+        
         setWrongCount((c) => {
           const nc = c + 1
           if (nc >= 2) {
@@ -120,7 +120,7 @@ export default function AreYouChill() {
     // Special logic for Q10 (click-real): only clicking the word "real" counts as correct
     if (current.special === 'click-real') {
       // Any option selection is wrong
-      setShowWrongX(true)
+      
       setWrongCount((c) => {
         const nc = c + 1
         if (nc >= 2) {
@@ -139,7 +139,7 @@ export default function AreYouChill() {
       setScore((s) => s + 1)
       setTimeout(advance, 600)
     } else {
-      setShowWrongX(true)
+      
       setWrongCount((c) => {
         const nc = c + 1
         if (nc >= 2) {
@@ -160,7 +160,7 @@ export default function AreYouChill() {
   }
 
   const restart = () => {
-    setIdx(0); setSelected(null); setScore(0); setDone(false); setFailed(false); setWrongCount(0); setShowWrongX(false); setDelayReady(false)
+    setIdx(0); setSelected(null); setScore(0); setDone(false); setFailed(false); setWrongCount(0); setDelayReady(false)
   }
 
   return (
