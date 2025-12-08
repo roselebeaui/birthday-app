@@ -1,0 +1,15 @@
+:root {
+  --bg: #000;
+}
+.fullscreen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+}
+.img {
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+}

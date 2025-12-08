@@ -26,7 +26,8 @@
 
 .brand {
 	font-weight: 600;
-	color: var(--text);
+	color: #ffffff;
+	font-size: 1.3rem; /* slightly larger title */
 }
 
 .links {

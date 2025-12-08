@@ -1,0 +1,156 @@
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&display=swap');
+:root {
+  --bg: #221238;
+  --tile-bg: #ffffff;
+  --tile-border: #dcdcdc;
+  --text: #111111;
+  --muted: #666666;
+  --correct: #6aaa64; /* green */
+  --present: #c9b458; /* yellow */
+  --absent: #787c7e; /* gray */
+}
+
+.container {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text);
+  padding: 24px 12px;
+}
+
+.layout {
+  width: 100%;
+  max-width: 900px;
+}
+
+.rulesPanel {
+  position: fixed;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 260px;
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.scareOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.95);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+}
+.scareImg {
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+}
+
+.rulesTitle { font-weight: 800; margin-bottom: 8px; }
+.ruleItem { font-size: 0.9rem; line-height: 1.3; margin: 6px 0; color: #f0f0f0; }
+.ruleHint { font-size: 0.85rem; color: #ddd; margin-top: 8px; }
+
+.board {
+  display: grid;
+  grid-template-rows: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.pageTitle {
+  text-align: center;
+  color: #fff;
+  font-family: 'Baloo 2', system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 900;
+  font-size: 2.2rem;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  margin-top: 0;
+  margin-bottom: 100px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(5, 56px);
+  justify-content: center;
+  gap: 8px;
+}
+
+.tile {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  background: var(--tile-bg);
+  border: 2px solid var(--tile-border);
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 1.25rem;
+  text-transform: uppercase;
+}
+
+.tile.revealed.absent { background: var(--absent); color: #fff; border-color: var(--absent); }
+.tile.revealed.present { background: var(--present); color: #fff; border-color: var(--present); }
+.tile.revealed.correct { background: var(--correct); color: #fff; border-color: var(--correct); }
+
+/* Export these classes explicitly so CSS Modules provides names */
+.revealed { outline: 0; }
+.absent { outline: 0; }
+.present { outline: 0; }
+.correct { outline: 0; }
+
+.keyboard {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.krow { display: flex; justify-content: center; gap: 6px; }
+.key {
+  min-width: 42px;
+  padding: 12px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.9);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
+.key.small { min-width: 54px; }
+.key.wide { min-width: 88px; }
+
+.key:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.key.absent { background: var(--absent); color: #fff; border-color: var(--absent); }
+.key.present { background: var(--present); color: #fff; border-color: var(--present); }
+.key.correct { background: var(--correct); color: #fff; border-color: var(--correct); }
+
+.status { margin-top: 12px; color: #fff; font-weight: 600; }
+.actions { margin-top: 12px; display: flex; gap: 8px; justify-content: center; }
+.button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.9);
+  cursor: pointer;
+}
+
+.buttonPrimary {
+  padding: 12px 20px;
+  min-width: 120px;
+  font-weight: 800;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.95);
+}

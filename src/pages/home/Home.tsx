@@ -8,8 +8,8 @@ const placeholders = [
   'Block Runner',
   'The Cave of Two Lovers',
   'Photo Puzzle',
-  'Word Scramble',
-  'Guess The Year',
+  'Brain Teasers',
+  'See Your Prophecy',
 ]
 
 export default function Home() {
@@ -276,6 +276,33 @@ export default function Home() {
                   >
                     {label}
                   </div>
+                ) : label === 'Photo Puzzle' ? (
+                  <div
+                    className={styles.cardInner}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate('/games/word-guess')}
+                    onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') navigate('/games/word-guess') }}
+                    style={{ cursor: 'pointer' }}
+                  >Brainrot Wordle</div>
+                ) : label === 'See Your Prophecy' ? (
+                  <div
+                    className={styles.cardInner}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate('/games/see-your-future')}
+                    onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') navigate('/games/see-your-future') }}
+                    style={{ cursor: 'pointer' }}
+                  >See Your Prophecy</div>
+                ) : label === 'Brain Teasers' ? (
+                  <div
+                    className={styles.cardInner}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate('/games/brain-teasers')}
+                    onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') navigate('/games/brain-teasers') }}
+                    style={{ cursor: 'pointer' }}
+                  >Brain Teasers</div>
                 ) : (
                   <div className={styles.cardInner}>{label}</div>
                 )}

@@ -18,6 +18,7 @@ export default function RankingGrossFood() {
   const [slots, setSlots] = useState<Slot[]>(Array.from({ length: 10 }, (_, i) => ({ rank: i + 1 })))
   const [assigned, setAssigned] = useState<Record<string, number>>({}) // img -> rank
   const intervalRef = useRef<number | null>(null)
+  const assignedRef = useRef<Record<string, number>>({})
 
   const remainingImages = useMemo(() => images.filter((src) => assigned[src] === undefined), [images, assigned])
   const remainingRanks = useMemo(() => slots.filter(s => !s.img).map(s => s.rank), [slots])
@@ -35,13 +36,20 @@ export default function RankingGrossFood() {
     // cycle randomly for 2 seconds then stop on a random remaining image
     const endAt = Date.now() + 2000
     intervalRef.current = window.setInterval(() => {
-      const idx = Math.floor(Math.random() * remainingImages.length)
-      setCurrent(remainingImages[idx])
+      const liveRemaining = images.filter((src) => assignedRef.current[src] === undefined)
+      if (liveRemaining.length === 0) {
+        if (intervalRef.current) { window.clearInterval(intervalRef.current); intervalRef.current = null }
+        setSpinning(false)
+        return
+      }
+      const idx = Math.floor(Math.random() * liveRemaining.length)
+      setCurrent(liveRemaining[idx])
       if (Date.now() >= endAt) {
         if (intervalRef.current) { window.clearInterval(intervalRef.current); intervalRef.current = null }
         // land on a final image
-        const finalIdx = Math.floor(Math.random() * remainingImages.length)
-        setCurrent(remainingImages[finalIdx])
+        const finalRemaining = images.filter((src) => assignedRef.current[src] === undefined)
+        const finalIdx = Math.floor(Math.random() * finalRemaining.length)
+        setCurrent(finalRemaining[finalIdx])
         setSpinning(false)
       }
     }, 80)
@@ -58,10 +66,15 @@ export default function RankingGrossFood() {
     nextSlots[slotIdx] = { ...nextSlots[slotIdx], img: current }
     setSlots(nextSlots)
     setAssigned(prev => ({ ...prev, [current]: rank }))
+    assignedRef.current = { ...assignedRef.current, [current]: rank }
 
     // auto-spin again if any remain
-    if (remainingImages.length - 1 > 0 && remainingRanks.length - 1 > 0) {
+    const nextRemainingImages = images.filter((src) => assignedRef.current[src] === undefined)
+    const nextRemainingRanks = nextSlots.filter(s => !s.img).length
+    if (nextRemainingImages.length > 0 && nextRemainingRanks > 0) {
       setTimeout(() => startSpin(), 400)
+    } else {
+      setCurrent(undefined)
     }
   }
 
@@ -97,6 +110,8 @@ export default function RankingGrossFood() {
           <div className={styles.photoBox} data-view-transition-name="fr-photo">
             {current ? (
               <img src={current} alt="Random food" />
+            ) : started ? (
+              <div style={{height:'100%'}}></div>
             ) : (
               <div className={styles.placeholder}>Press Start to begin</div>
             )}

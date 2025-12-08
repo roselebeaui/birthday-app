@@ -1,0 +1,5 @@
+.container { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+.wrap { width: 100%; max-width: 780px; text-align: center; }
+.title { font-size: 2rem; font-weight: 800; margin-bottom: 8px; }
+.subtitle { font-size: 1rem; opacity: 0.85; margin-bottom: 18px; }
+.placeholder { padding: 16px; border: 1px dashed rgba(0,0,0,0.2); border-radius: 10px; }

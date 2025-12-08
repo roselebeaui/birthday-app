@@ -1,0 +1,159 @@
+:root {
+  --bg: #221238;
+}
+.container {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  color: #fff;
+  padding: 24px 12px;
+}
+.wrap { max-width: 980px; width: 100%; display: grid; justify-items: center; }
+.title { font-size: 2rem; font-weight: 800; margin: 24px 0 16px; }
+.deck {
+  width: 200px;
+  height: 280px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #5b3a92, #2d1a4f);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.3);
+  display: grid; place-items: center;
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.15);
+}
+.deck:hover { transform: translateY(-2px); transition: transform 200ms; }
+.row { display: flex; gap: 16px; margin-top: 20px; }
+.card {
+  width: 200px;
+  height: 280px;
+  border-radius: 12px;
+  background: #0c0716;
+  border: 2px solid rgba(255,255,255,0.15);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  animation: cardSpawn 380ms ease forwards;
+}
+.cardFace {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  backface-visibility: hidden;
+  transition: transform 500ms ease;
+}
+.cardBack { background: linear-gradient(135deg,#3e275f,#120a24); }
+.cardFront { background: rgba(255,255,255,0.95); color: #111; padding: 12px; }
+.cardInner { position: relative; transform-style: preserve-3d; width: 100%; height: 100%; }
+.card.revealed .cardInner { transform: rotateY(180deg); transition: transform 500ms ease; }
+.cardBack { transform: rotateY(0deg); }
+.cardFront { transform: rotateY(180deg); }
+.card.revealed { box-shadow: 0 0 0 2px rgba(255,255,255,0.2), 0 10px 28px rgba(0,0,0,0.38); }
+.card.revealed .cardFront { outline: 0; filter: drop-shadow(0 4px 14px rgba(255,255,255,0.15)); }
+
+@keyframes cardSpawn {
+  0% { opacity: 0; transform: translateY(10px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Place-down sequence for left-to-right deal */
+.rowPlaced .card {
+  opacity: 0;
+  transform: translateY(-18px) rotate(-2deg) scale(0.98);
+  animation: cardPlace 360ms ease forwards;
+}
+@keyframes cardPlace {
+  0% { opacity: 0; transform: translateY(-18px) rotate(-2deg) scale(0.98); }
+  50% { opacity: 1; transform: translateY(6px) rotate(1.2deg) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+}
+
+/* Card back design distinct from deck */
+.cardBack {
+  background: radial-gradient(circle at 50% 45%, #2b1a47 0%, #1a0f2d 42%, #0f081b 100%);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.frontWrap {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  align-items: start;
+  justify-items: center;
+  width: 100%;
+  height: 100%;
+}
+.frontTitle {
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.15rem;
+  margin-top: 6px;
+}
+.frontReversed {
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #b00020;
+  margin-top: 4px;
+}
+.frontBody {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 0.98rem;
+  line-height: 1.4;
+  padding: 0;
+  align-self: center;
+  justify-self: center;
+}
+.meta { margin-top: 16px; text-align: center; max-width: 640px; }
+.buttonRow { margin-top: 20px; display: flex; justify-content: center; }
+.button {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.9);
+  color: #111;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hidden { display: none; }
+
+.narrativeOverlay {
+  position: fixed;
+  left: 16px;
+  top: calc(var(--header-height, 56px) + 12px);
+  max-width: 420px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px 14px;
+  z-index: 900;
+}
+.narrativeTitle { font-weight: 800; margin-bottom: 6px; }
+.narrativeBody {
+  white-space: normal;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.narrativeSection {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 10px;
+}
+.narrativeSectionTitle {
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.narrativeEnding {
+  margin-top: 8px;
+  font-style: italic;
+  opacity: 0.9;
+}
